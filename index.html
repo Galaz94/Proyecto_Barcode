@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Barcode Toolbox</title>
+  <style>
+    /* --- Variables CSS para Theming (Solo UI General) --- */
+    :root {
+      --bg-color: #f7f7f7;
+      --text-color: #333;
+      --input-bg: #fff;
+      --input-border: #ccc;
+      --button-bg: #e0e0e0;
+      --button-text: #333;
+      --button-hover-bg: #d5d5d5;
+      --info-text-color: #666;
+      --error-color: #d9534f;
+      --footer-color: gray;
+      --link-color: #007bff; /* Para foco en textarea */
+
+      /* Colores fijos para códigos de barras */
+      --barcode-bg: #ffffff;
+      --barcode-border: #eeeeee;
+      --barcode-text-color: #000000;
+      --used-strike-color-light: red;
+      --scanner-marker-color-light: #007bff;
+    }
+
+    body.dark-mode {
+      --bg-color: #2d2d2d;
+      --text-color: #f1f1f1;
+      --input-bg: #3a3a3a;
+      --input-border: #555;
+      --button-bg: #555;
+      --button-text: #f1f1f1;
+      --button-hover-bg: #666;
+      --info-text-color: #aaa;
+      --error-color: #f87171;
+      --footer-color: #aaa;
+      --link-color: #58a6ff;
+
+      /* Colores específicos modo oscuro (UI) */
+      --used-strike-color-dark: #ff7b7b;
+      --scanner-marker-color-dark: #58a6ff;
+    }
+
+    /* --- Estilos Generales --- */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+      padding: 10px; /* Reducir padding general */
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      transition: background-color 0.3s, color 0.3s;
+      margin: 0;
+      line-height: 1.5;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 5px; /* Ajustar padding */
+    }
+    h1 {
+        text-align: center;
+        color: var(--text-color);
+        margin-top: 35px; /* Espacio para botones flotantes */
+        margin-bottom: 1rem;
+        font-size: 1.8em;
+    }
+    textarea {
+      width: 100%;
+      height: 100px; /* Volver a tamaño anterior */
+      margin-bottom: 10px;
+      box-sizing: border-box;
+      background-color: var(--input-bg);
+      color: var(--text-color);
+      border: 1px solid var(--input-border);
+      border-radius: 6px;
+      padding: 8px;
+      transition: background-color 0.3s, border-color 0.3s, box-shadow 0.2s;
+      font-size: 1rem;
+    }
+     textarea:focus {
+      outline: none;
+      border-color: var(--link-color);
+      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2); /* Usar un color fijo para el shadow */
+      body.dark-mode & {
+         box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.25); /* Shadow para dark mode */
+      }
+    }
+    button {
+      padding: 9px 14px; /* Ajustar padding botones */
+      margin: 4px; /* Espacio entre botones */
+      cursor: pointer;
+      background-color: var(--button-bg);
+      color: var(--button-text);
+      border: none;
+      border-radius: 6px;
+      transition: background-color 0.2s, opacity 0.2s;
+      font-size: 0.9rem; /* Tamaño fuente botones */
+      vertical-align: middle; /* Alinear mejor */
+    }
+    button:hover:not(:disabled) {
+      background-color: var(--button-hover-bg);
+    }
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+    .button-group {
+        margin-bottom: 15px;
+        text-align: center; /* Centrar botones */
+        display: flex; /* Usar flexbox */
+        flex-wrap: wrap; /* Permitir que los botones bajen */
+        justify-content: center; /* Centrar botones horizontalmente */
+        gap: 8px; /* Espacio entre botones con flex */
+    }
+    /* --- Estilos Output Códigos --- */
+    #output { margin-top: 15px; }
+    #output.list .barcode-item { margin: 10px 0; }
+    #output.grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); /* Ajustar tamaño mínimo */
+        gap: 10px;
+    }
+    .barcode-item {
+      background: var(--barcode-bg); /* Fondo fijo blanco */
+      padding: 10px;
+      border: 1px solid var(--barcode-border); /* Borde fijo claro */
+      border-radius: 8px;
+      text-align: center;
+      position: relative;
+      word-wrap: break-word;
+      overflow: hidden;
+    }
+    .barcode-item.used { position: relative; }
+    .barcode-item.used::after {
+      content: "";
+      position: absolute;
+      top: 50%; left: -5%;
+      width: 110%;
+      /* Usar la variable correcta según el modo */
+      border-top: 3px solid var(--used-strike-color-light);
+      body.dark-mode & {
+        border-top-color: var(--used-strike-color-dark);
+      }
+      transform: rotate(-10deg) translateY(-50%);
+      pointer-events: none;
+      z-index: 1;
+    }
+    .barcode-item svg {
+        max-width: 100%;
+        height: auto;
+        display: block;
+        margin: 0 auto 5px auto;
+    }
+    .barcode-item svg text {
+      fill: var(--barcode-text-color) !important; /* Texto siempre negro */
+      font-size: 11px !important; /* Texto código un poco más pequeño */
+      font-family: monospace;
+    }
+    .scan-marker-icon {
+        position: absolute;
+        top: 5px; /* Ajustar posición */
+        right: 5px;
+        font-size: 1rem; /* Ajustar tamaño */
+        /* Usar la variable correcta según el modo */
+        color: var(--scanner-marker-color-light);
+         body.dark-mode & {
+            color: var(--scanner-marker-color-dark);
+         }
+        cursor: default;
+        z-index: 2;
+        opacity: 0.8; /* Un poco más sutil */
+    }
+    .barcode-error {
+      color: var(--error-color);
+      padding: 8px;
+      font-size: 0.85em;
+      text-align: center;
+      border: 1px dashed var(--error-color);
+      border-radius: 6px;
+      margin: 10px 0;
+      background-color: rgba(217, 83, 79, 0.05);
+      body.dark-mode & {
+         background-color: rgba(248, 113, 113, 0.1);
+      }
+    }
+    #info-message {
+        font-size: 0.85em;
+        color: var(--info-text-color);
+        margin-bottom: 10px;
+        min-height: 1.1em;
+        text-align: center;
+    }
+    footer {
+      margin-top: 25px;
+      padding-top: 10px;
+      border-top: 1px solid var(--input-border);
+      font-size: 0.8em; /* Footer más pequeño */
+      color: var(--footer-color);
+      text-align: center;
+    }
+    footer strong {
+        font-weight: 600;
+    }
+
+    /* --- Estilos Escáner --- */
+    #scanner-controls {
+        text-align: center;
+        margin: 10px 0; /* Menos margen */
+    }
+    #scanner-container {
+        margin-top: 10px;
+        border: 1px solid var(--input-border);
+        background: var(--input-bg);
+        border-radius: 6px;
+        overflow: hidden;
+    }
+    #reader { margin: 0 auto; }
+    #reader video {
+        display: block;
+        width: 100% !important;
+        height: auto !important;
+    }
+
+    /* --- Botones Flotantes (Ayuda y Tema) --- */
+    .floating-buttons {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 10; /* Encima del contenido normal */
+    }
+    .floating-buttons button {
+        background: none;
+        border: none;
+        font-size: 1.5rem; /* Íconos grandes */
+        padding: 5px;
+        margin-left: 5px;
+        opacity: 0.8;
+    }
+     .floating-buttons button:hover {
+        opacity: 1;
+        background: none; /* Sin fondo al pasar el mouse */
+     }
+
+  </style>
+</head>
+<body>
+
+<div class="floating-buttons">
+    <button id="help-button" onclick="showHelp()" title="Ayuda">❓</button>
+    <button id="theme-toggle" onclick="toggleTheme()" title="Cambiar Tema"> M </button> </div>
+
+<div class="container">
+
+    <h1>Barcode Toolbox</h1>
+
+    <div id="info-message"></div>
+
+    <textarea id="input" placeholder="Pega aquí tus códigos (separados por espacio, tabulador o salto de línea)..." aria-label="Entrada de códigos"></textarea>
+
+    <div class="button-group">
+        <button onclick="generateBarcodes()">🔄 Generar</button>
+        <button onclick="clearInput()">🧹 Limpiar</button>
+        <button onclick="changeLayout()">📊 Vista</button>
+        <button id="savePdf" style="display:none;" onclick="downloadPDF()">📄 PDF</button>
+        <button id="removeUsedBtn" onclick="removeUsedCodes()">❌ Eliminar Usados</button>
+    </div>
+
+    <div id="scanner-controls">
+        <button id="startScanBtn" onclick="startScanner()">📷 Escanear</button>
+        <button id="stopScanBtn" onclick="stopScanner()" style="display:none;">🛑 Detener</button>
+    </div>
+    <div id="scanner-container" style="display:none;">
+        <div id="reader"></div>
+    </div>
+
+    <div id="output" class="list"></div>
+
+    <footer>
+      Barcode Toolbox - fgalaz <strong>v2026</strong>
+    </footer>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<script>
+  // --- Variables Globales y Selectores ---
+  let usedCodes = JSON.parse(localStorage.getItem('usedCodes') || "[]");
+  let scannedCodes = new Set(JSON.parse(localStorage.getItem('scannedCodes') || "[]"));
+  let html5QrCode = null; // Renombrado para evitar conflicto con la clase
+  let isScannerActive = false; // Flag para estado del escáner
+
+  const infoMessageDiv = document.getElementById("info-message");
+  const outputDiv = document.getElementById("output");
+  const inputTextArea = document.getElementById("input");
+  const savePdfBtn = document.getElementById('savePdf');
+  const startScanBtn = document.getElementById('startScanBtn');
+  const stopScanBtn = document.getElementById('stopScanBtn');
+  const scannerContainer = document.getElementById('scanner-container');
+  const readerDiv = document.getElementById('reader');
+  const themeToggleBtn = document.getElementById('theme-toggle');
+
+  // --- Funciones de Utilidad ---
+  function displayInfoMessage(message, duration = 3500) { // Duración más corta
+    infoMessageDiv.textContent = message;
+    infoMessageDiv.style.opacity = '1'; // Asegurar visibilidad
+    if (duration > 0) {
+      setTimeout(() => {
+          infoMessageDiv.style.opacity = '0'; // Desvanecer
+          setTimeout(() => { infoMessageDiv.textContent = ""; }, 300); // Limpiar después de desvanecer
+      }, duration);
+    }
+  }
+
+  // --- Funciones Principales ---
+  function generateBarcodes() {
+    const rawInput = inputTextArea.value.trim();
+    outputDiv.innerHTML = "";
+    // No limpiar infoMessageDiv aquí para no borrar mensaje de duplicados
+    savePdfBtn.style.display = rawInput ? "inline-block" : "none";
+    if (!rawInput) {
+        infoMessageDiv.textContent = ""; // Limpiar si no hay input
+        return;
+    }
+
+    // ***** MODIFICACIÓN AQUÍ *****
+    // Divide la entrada por uno o más caracteres de espacio en blanco (espacio, tab, newline)
+    const originalCodes = rawInput.split(/\s+/).map(c => c.trim()).filter(Boolean);
+    // *****************************
+
+    const uniqueCodesSet = new Set(originalCodes);
+    const uniqueCodes = [...uniqueCodesSet];
+    const duplicatesRemoved = originalCodes.length - uniqueCodes.length;
+
+    // Mostrar mensaje de duplicados *antes* de generar, si los hubo
+    if (duplicatesRemoved > 0 && !infoMessageDiv.textContent) { // Solo mostrar si no hay otro mensaje
+      displayInfoMessage(`Se eliminaron ${duplicatesRemoved} duplicados.`, 4000);
+    } else if (duplicatesRemoved === 0) {
+      // Limpiar mensaje si no hubo duplicados y no hay otro mensaje activo
+       // infoMessageDiv.textContent = ""; // Evitar limpiar mensajes activos
+    }
+
+
+    uniqueCodes.forEach(code => {
+      const div = document.createElement("div");
+      div.className = "barcode-item";
+      div.dataset.code = code;
+
+      if (usedCodes.includes(code)) div.classList.add("used");
+
+      const isScanned = scannedCodes.has(code);
+      if (isScanned) {
+        const topMarker = document.createElement("span");
+        topMarker.className = 'scan-marker-icon';
+        topMarker.title = 'Escaneado';
+        topMarker.textContent = '📷';
+        div.appendChild(topMarker);
+      }
+
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      try {
+        JsBarcode(svg, code, {
+            format: "CODE128",
+            width: 2,
+            height: 50,
+            displayValue: true, // Dejar que JsBarcode maneje el texto
+            margin: 5,
+            fontSize: 11 // Tamaño fuente texto JsBarcode
+        });
+        div.appendChild(svg);
+
+        div.addEventListener("click", (event) => {
+          if (event.target.closest('button') || event.target.closest('a') || event.target.closest('.scan-marker-icon')) return;
+          div.classList.toggle("used");
+          updateUsedCodes(code, div.classList.contains("used"));
+        });
+        outputDiv.appendChild(div);
+      } catch (e) {
+          console.error(`Error generando código "${code}":`, e);
+          const errorDiv = document.createElement("div");
+          errorDiv.className = "barcode-error";
+          errorDiv.textContent = `Error: Código "${code}" inválido.`;
+          outputDiv.appendChild(errorDiv);
+      }
+    });
+  }
+
+  function clearInput() {
+    inputTextArea.value = "";
+    outputDiv.innerHTML = "";
+    savePdfBtn.style.display = "none";
+    infoMessageDiv.textContent = "";
+    if (isScannerActive) stopScanner(); // Detener escáner si está activo
+  }
+
+  function updateUsedCodes(code, isUsed) {
+    const index = usedCodes.indexOf(code);
+    if (isUsed) {
+      if (index === -1) usedCodes.push(code);
+    } else {
+      if (index > -1) usedCodes.splice(index, 1);
+    }
+    localStorage.setItem('usedCodes', JSON.stringify(usedCodes));
+  }
+
+  function changeLayout() {
+    outputDiv.className = (outputDiv.className === "list") ? "grid" : "list";
+  }
+
+  function removeUsedCodes() {
+    if (usedCodes.length === 0) {
+        displayInfoMessage("No hay códigos marcados como 'usados'.", 3000);
+        return;
+    }
+    if (confirm(`¿Eliminar ${usedCodes.length} código(s) 'usado(s)' de la lista y memoria?`)) {
+      // ***** MODIFICACIÓN AQUÍ TAMBIÉN *****
+      // Usar la misma lógica de split para obtener los códigos actuales
+      let currentCodes = inputTextArea.value.trim().split(/\s+/).map(c => c.trim()).filter(Boolean);
+      // ***********************************
+      let keptCodes = currentCodes.filter(code => !usedCodes.includes(code));
+      inputTextArea.value = keptCodes.join("\n"); // Volver a juntar con saltos de línea para claridad
+      const removedCount = usedCodes.length; // Guardar antes de limpiar
+      usedCodes = [];
+      localStorage.removeItem('usedCodes');
+      generateBarcodes(); // Regenerar con los códigos restantes
+      displayInfoMessage(`${removedCount} código(s) 'usado(s)' eliminado(s).`, 4000);
+    }
+  }
+
+  // --- Funciones Escáner ---
+  function onScanSuccess(decodedText, decodedResult) {
+    console.log(`Código leído: ${decodedText}`);
+    const currentText = inputTextArea.value.trim();
+    const codeToAdd = decodedText.trim(); // Asegurar que no hay espacios extra
+
+    // ***** MODIFICACIÓN AQUÍ TAMBIÉN *****
+    // Comprobar si existe usando la misma lógica de split
+    const codeExists = currentText.split(/\s+/).some(line => line.trim() === codeToAdd);
+    // ***********************************
+
+    if (!codeExists) {
+        // Añadir el nuevo código en una nueva línea para mayor claridad,
+        // independientemente de cómo se ingresaron los anteriores.
+        inputTextArea.value = currentText ? `${currentText}\n${codeToAdd}` : codeToAdd;
+        scannedCodes.add(codeToAdd);
+        localStorage.setItem('scannedCodes', JSON.stringify([...scannedCodes]));
+        displayInfoMessage(`"${codeToAdd}" añadido (📷).`, 3000);
+        generateBarcodes(); // Regenerar para mostrar el nuevo código y marcador
+    } else {
+        displayInfoMessage(`"${codeToAdd}" ya existe.`, 3000);
+        // Opcional: Marcar el código existente como escaneado si no lo estaba
+        const itemDiv = outputDiv.querySelector(`.barcode-item[data-code="${codeToAdd}"]`);
+        if (itemDiv && !itemDiv.querySelector('.scan-marker-icon')) {
+             if (!scannedCodes.has(codeToAdd)) {
+                scannedCodes.add(codeToAdd);
+                localStorage.setItem('scannedCodes', JSON.stringify([...scannedCodes]));
+             }
+             const topMarker = document.createElement("span");
+             topMarker.className = 'scan-marker-icon';
+             topMarker.title = 'Escaneado';
+             topMarker.textContent = '📷';
+             itemDiv.appendChild(topMarker); // Añadir marcador visual
+        }
+    }
+    // Para escanear continuamente, no detener aquí.
+    // Para detener tras un escaneo: stopScanner();
+  }
+
+
+  function onScanFailure(error) {
+     // Ignorar errores comunes como "No QR code found."
+     // console.warn(`Scan error: ${error}`);
+  }
+
+  function startScanner() {
+      if (location.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(location.hostname)) {
+         alert('El escáner requiere una conexión segura (HTTPS) o localhost.');
+         return;
+      }
+      if (isScannerActive) return; // Ya está activo
+
+      scannerContainer.style.display = 'block';
+      startScanBtn.style.display = 'none';
+      stopScanBtn.style.display = 'inline-block';
+      readerDiv.innerHTML = ''; // Limpiar visor
+
+      // Usar la clase directamente como recomienda la doc v2.3.8
+      html5QrCode = new Html5Qrcode("reader"); // Crear instancia
+      isScannerActive = true;
+
+      const config = {
+            fps: 10,
+            qrbox: { width: 250, height: 150 }, // Tamaño fijo o función como antes
+            rememberLastUsedCamera: true
+      };
+
+      html5QrCode.start(
+          { facingMode: "environment" },
+          config,
+          onScanSuccess,
+          onScanFailure
+      ).catch(err => {
+          console.error("Error al iniciar escáner:", err);
+          alert("No se pudo iniciar el escáner. Verifica los permisos de cámara.");
+          // Asegurarse de resetear UI si falla el start
+          isScannerActive = false;
+          scannerContainer.style.display = 'none';
+          startScanBtn.style.display = 'inline-block';
+          stopScanBtn.style.display = 'none';
+          readerDiv.innerHTML = '';
+      });
+  }
+
+ function stopScanner() {
+    if (html5QrCode && isScannerActive) {
+        html5QrCode.stop().then(ignore => {
+            console.log("Scanner detenido.");
+        }).catch(err => {
+            console.error("Error al detener scanner:", err);
+        }).finally(() => {
+            isScannerActive = false; // Marcar como inactivo
+            scannerContainer.style.display = 'none';
+            startScanBtn.style.display = 'inline-block';
+            stopScanBtn.style.display = 'none';
+            readerDiv.innerHTML = '';
+            // html5QrCode = null; // No destruir instancia si se va a reutilizar
+        });
+    } else {
+        // Solo arreglar UI si no estaba activo o ya se detuvo
+        isScannerActive = false;
+        scannerContainer.style.display = 'none';
+        startScanBtn.style.display = 'inline-block';
+        stopScanBtn.style.display = 'none';
+    }
+}
+
+
+  // --- Función PDF ---
+  async function downloadPDF() {
+    const originalBtnText = savePdfBtn.textContent;
+    savePdfBtn.disabled = true;
+    savePdfBtn.textContent = 'Generando...'; // Texto más corto
+
+    try {
+      const elementToPrint = document.createElement("div");
+      const currentOutputDiv = document.getElementById("output");
+
+      const container = document.createElement("div");
+      container.style.display = "grid";
+      container.style.gridTemplateColumns = "repeat(3, 1fr)"; // 3 columnas fijas para PDF
+      container.style.gap = "8px"; // Menos gap en PDF
+      container.style.padding = "5mm"; // Padding interno
+
+      currentOutputDiv.querySelectorAll(".barcode-item:not(.barcode-error)").forEach(child => {
+          const svgElement = child.querySelector("svg");
+          if (svgElement) {
+              const cleanDiv = document.createElement("div");
+              // Estilos fijos para PDF (ignoran modo noche)
+              cleanDiv.style.background = "#ffffff";
+              cleanDiv.style.padding = "5px";
+              cleanDiv.style.border = "1px solid #eee";
+              cleanDiv.style.borderRadius = "4px";
+              cleanDiv.style.textAlign = "center";
+              cleanDiv.style.pageBreakInside = "avoid";
+
+              const svgClone = svgElement.cloneNode(true);
+              // Asegurar colores fijos en SVG para PDF
+              svgClone.style.fill = '#000000'; // Color barras
+              svgClone.querySelectorAll('text').forEach(textEl => {
+                  textEl.style.fill = '#000000'; // Color texto
+              });
+              cleanDiv.appendChild(svgClone);
+              container.appendChild(cleanDiv);
+          }
+      });
+
+      elementToPrint.appendChild(container);
+
+      const marca = document.createElement("div");
+      marca.style.textAlign = "center";
+      marca.style.color = "#555";
+      marca.style.marginTop = "10px";
+      marca.style.fontSize = "0.75em"; // Texto footer PDF más pequeño
+      // Footer actualizado para PDF
+      marca.innerHTML = "Barcode Toolbox - fgalaz <strong>v2026</strong>";
+      elementToPrint.appendChild(marca);
+
+      const opt = {
+        margin: 8, // Margen uniforme en mm
+        filename: `codigos_barras_${new Date().toISOString().slice(0,10)}.pdf`,
+        image: { type: 'jpeg', quality: 0.95 }, // Calidad JPEG
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css'] }
+      };
+
+      await html2pdf().from(elementToPrint).set(opt).save();
+
+    } catch (error) {
+      console.error("Error al generar PDF:", error);
+      alert("Hubo un error al generar el PDF.");
+    } finally {
+      savePdfBtn.disabled = false;
+      savePdfBtn.textContent = '📄 PDF'; // Restaurar texto original
+    }
+  }
+
+  // --- Lógica Modo Noche ---
+  function applyTheme(theme) {
+      if (theme === 'dark') {
+          document.body.classList.add('dark-mode');
+          themeToggleBtn.textContent = '☀️'; // Ícono sol
+          themeToggleBtn.title = 'Cambiar a Modo Claro';
+      } else {
+          document.body.classList.remove('dark-mode');
+          themeToggleBtn.textContent = '🌙'; // Ícono luna
+          themeToggleBtn.title = 'Cambiar a Modo Oscuro';
+      }
+  }
+
+  function toggleTheme() {
+      const currentIsDark = document.body.classList.contains('dark-mode');
+      const newTheme = currentIsDark ? 'light' : 'dark';
+      applyTheme(newTheme);
+      localStorage.setItem('theme', newTheme);
+  }
+
+  // --- Ayuda Simple ---
+  function showHelp() {
+      const helpText = `Funciones:
+      - Generar: Crea códigos desde el texto (separados por espacio, tab o línea nueva; sin duplicados).
+      - Limpiar: Borra entrada y códigos generados.
+      - Vista: Cambia entre lista y cuadrícula.
+      - PDF: Guarda los códigos generados en PDF.
+      - Eliminar Usados: Quita códigos marcados (clic en código para marcar/desmarcar).
+      - Escanear: Usa la cámara para añadir códigos (requiere HTTPS).
+      - Marcar/Desmarcar: Haz clic en un código para tacharlo (usado).
+      - 🌙 / ☀️: Cambia entre modo claro y oscuro.`;
+      alert(helpText);
+  }
+
+  // --- Inicialización ---
+  document.addEventListener('DOMContentLoaded', () => {
+      const savedTheme = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      // Aplica tema guardado, o el del sistema si no hay nada guardado
+      applyTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
+
+      // Actualizar placeholder para reflejar la nueva funcionalidad
+      inputTextArea.placeholder = "Pega aquí tus códigos (separados por espacio, tabulador o salto de línea)...";
+
+      if(inputTextArea.value.trim()){
+          generateBarcodes(); // Genera si hay texto al cargar
+      }
+      // No registrar SW por ahora para simplificar y evitar problemas de PWA
+  });
+
+</script>
+
+</body>
+</html>
