@@ -133,6 +133,7 @@
       word-wrap: break-word;
       overflow: hidden;
     }
+    .barcode-item.used { position: relative; }
     .barcode-item svg {
         max-width: 100%;
         height: auto;
@@ -305,6 +306,7 @@
   // --- Funciones Principales ---
   function generateBarcodes() {
     const rawInput = inputTextArea.value.trim();
+    localStorage.setItem('barcodeInput', rawInput); // Guarda el input en localStorage
     outputDiv.innerHTML = "";
     savePdfBtn.style.display = rawInput ? "inline-block" : "none";
     if (!rawInput) {
@@ -363,11 +365,11 @@
           if (svgElement) {
             svgElement.remove(); // Elimina el SVG del código de barras
             div.classList.add("used"); // Opcional: Puedes mantener la clase "used" para otro propósito si lo deseas
-            div.textContent = `✅️ ${code} ✅️`; // Muestra el valor numérico con marcas
+            div.innerHTML = `✅️ <i>${code}</i> ✅️`; // Muestra el valor numérico en itálicas con marcas
             updateUsedCodes(code, true); // Actualiza la lista de códigos usados
           } else {
             // Si ya se hizo clic antes y se reemplazó, puedes revertir si lo deseas
-            div.textContent = '';
+            div.innerHTML = '';
             const newSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
             JsBarcode(newSvg, code, {
                 format: "CODE128",
@@ -377,12 +379,19 @@
                 margin: 5,
                 fontSize: 11
             });
+            const isScannedAgain = scannedCodes.has(code);
+            if (isScannedAgain) {
+                const topMarkerAgain = document.createElement("span");
+                topMarkerAgain.className = 'scan-marker-icon';
+                topMarkerAgain.title = 'Escaneado';
+                topMarkerAgain.textContent = '📷';
+                div.appendChild(topMarkerAgain);
+            }
             div.appendChild(newSvg);
             div.classList.remove("used");
             updateUsedCodes(code, false);
           }
         });
-
         outputDiv.appendChild(div);
       } catch (e) {
           console.error(`Error generando código "${code}":`, e);
@@ -658,8 +667,10 @@
       // Actualizar placeholder para reflejar la nueva funcionalidad
       inputTextArea.placeholder = "Pega aquí tus códigos (separados por espacio, tabulador o salto de línea)...";
 
-      if(inputTextArea.value.trim()){
-          generateBarcodes(); // Genera si hay texto al cargar
+      const storedInput = localStorage.getItem('barcodeInput'); // Recupera el input guardado
+      if (storedInput) {
+          inputTextArea.value = storedInput; // Establece el valor del textarea
+          generateBarcodes(); // Genera los códigos automáticamente
       }
       // No registrar SW por ahora para simplificar y evitar problemas de PWA
   });
