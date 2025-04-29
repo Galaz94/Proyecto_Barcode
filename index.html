@@ -335,7 +335,8 @@
       div.className = "barcode-item";
       div.dataset.code = code;
 
-      if (usedCodes.includes(code)) div.classList.add("used");
+      const isUsed = usedCodes.includes(code);
+      if (isUsed) div.classList.add("used");
 
       const isScanned = scannedCodes.has(code);
       if (isScanned) {
@@ -357,6 +358,11 @@
             fontSize: 11
         });
         div.appendChild(svg);
+
+        if (isUsed) { // Si el código ya estaba usado, aplicar los cambios visuales
+          svg.remove();
+          div.innerHTML = `✅️ <i>${code}</i> ✅️`;
+        }
 
         div.addEventListener("click", (event) => {
           if (event.target.closest('button') || event.target.closest('a') || event.target.closest('.scan-marker-icon')) return;
