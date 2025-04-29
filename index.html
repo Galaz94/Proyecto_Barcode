@@ -230,6 +230,37 @@
         background: none; /* Sin fondo al pasar el mouse */
      }
 
+    /* --- Estilos Buscador --- */
+    #search-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 15px;
+    }
+    #search-input {
+        padding: 8px;
+        margin-right: 5px;
+        border: 1px solid var(--input-border);
+        border-radius: 6px;
+        background-color: var(--input-bg);
+        color: var(--text-color);
+    }
+    #search-input:focus {
+      outline: none;
+      border-color: var(--link-color);
+      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2); /* Usar un color fijo para el shadow */
+      body.dark-mode & {
+         box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.25); /* Shadow para dark mode */
+      }
+    }
+    #search-container button {
+        padding: 8px 10px;
+    }
+
+    .search-highlight {
+      border: 2px solid orange !important; /* Ejemplo de borde naranja */
+    }
+
   </style>
 </head>
 <body>
@@ -241,6 +272,11 @@
 <div class="container">
 
     <h1>Barcode Toolbox</h1>
+
+    <div id="search-container">
+        <input type="text" id="search-input" placeholder="Ingresa código...">
+        <button onclick="searchBarcode()">🔍</button>
+    </div>
 
     <div id="info-message"></div>
 
@@ -606,7 +642,7 @@
       marca.style.marginTop = "10px";
       marca.style.fontSize = "0.75em"; // Texto footer PDF más pequeño
       // Footer actualizado para PDF
-      marca.innerHTML = "Barcode Toolbox - fgalaz <strong>v2026</strong>";
+      marca.innerHTML = "Generado por: Barcode Toolbox - fgalaz <strong>v2026</strong>";
       elementToPrint.appendChild(marca);
 
       const opt = {
@@ -627,6 +663,59 @@
       savePdfBtn.disabled = false;
       savePdfBtn.textContent = '📄 PDF'; // Restaurar texto original
     }
+  }
+
+  function searchBarcode() {
+    const searchTerm = document.getElementById('search-input').value.trim();
+    if (!searchTerm) {
+      displayInfoMessage("Por favor, ingresa un código para buscar.", 3000);
+      return;
+    }
+
+    const barcodeItems = document.querySelectorAll('.barcode-item');
+    let found = false;
+
+    barcodeItems.forEach(item => {
+      const code = item.dataset.code;
+      item.classList.remove('search-highlight'); // Removemos el resaltado anterior
+
+      if (code === searchTerm) {
+        item.classList.add('search-highlight');
+        found = true;
+        // Iniciar el efecto de parpadeo
+        startBlink(item);
+      }
+    });
+
+    if (!found) {
+      displayInfoMessage(`No se encontró el código "${searchTerm}".`, 3000);
+    }
+  }
+
+  function startBlink(element) {
+    const interval = 500; // Intervalo de tiempo entre cambios de opacidad (en milisegundos)
+    let opacity = 1;
+    let direction = -0.1; // Dirección inicial del cambio de opacidad (hacia abajo)
+    const minOpacity = 0.4;
+    const maxOpacity = 1;
+
+    const blinkInterval = setInterval(() => {
+      opacity += direction;
+
+      if (opacity <= minOpacity) {
+        direction = 0.1;
+      } else if (opacity >= maxOpacity) {
+        direction = -0.1;
+      }
+
+      element.style.opacity = opacity;
+    }, interval);
+
+    // Detener el parpadeo después de un tiempo
+    setTimeout(() => {
+      clearInterval(blinkInterval);
+      element.style.opacity = 1; // Asegurarse de que quede completamente visible
+    }, 3000); // Parpadea durante 3 segundos
   }
 
   // --- Lógica Modo Noche ---
@@ -659,7 +748,8 @@
       - Eliminar Usados: Quita códigos marcados (clic en código para marcar/desmarcar).
       - Escanear: Usa la cámara para añadir códigos (requiere HTTPS).
       - Marcar/Desmarcar: Haz clic en un código para tacharlo (usado).
-      - 🌙 / ☀️: Cambia entre modo claro y oscuro.`;
+      - 🌙 / ☀️: Cambia entre modo claro y oscuro.
+      - Lupa: Busca un código y lo destaca con un parpadeo.`;
       alert(helpText);
   }
 
