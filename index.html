@@ -133,21 +133,6 @@
       word-wrap: break-word;
       overflow: hidden;
     }
-    .barcode-item.used { position: relative; }
-    .barcode-item.used::after {
-      content: "";
-      position: absolute;
-      top: 50%; left: -5%;
-      width: 110%;
-      /* Usar la variable correcta según el modo */
-      border-top: 3px solid var(--used-strike-color-light);
-      body.dark-mode & {
-        border-top-color: var(--used-strike-color-dark);
-      }
-      transform: rotate(-10deg) translateY(-50%);
-      pointer-events: none;
-      z-index: 1;
-    }
     .barcode-item svg {
         max-width: 100%;
         height: auto;
@@ -321,30 +306,27 @@
   function generateBarcodes() {
     const rawInput = inputTextArea.value.trim();
     outputDiv.innerHTML = "";
-    // No limpiar infoMessageDiv aquí para no borrar mensaje de duplicados
     savePdfBtn.style.display = rawInput ? "inline-block" : "none";
     if (!rawInput) {
-        infoMessageDiv.textContent = ""; // Limpiar si no hay input
+        infoMessageDiv.textContent = "";
         return;
     }
 
-    // ***** MODIFICACIÓN AQUÍ *****
-    // Divide la entrada por uno o más caracteres de espacio en blanco (espacio, tab, newline)
-    const originalCodes = rawInput.split(/\s+/).map(c => c.trim()).filter(Boolean);
-    // *****************************
+    // Filtra la entrada para mantener solo números
+    const numericInput = rawInput.replace(/[^0-9\s\t\n]+/g, '');
+
+    // Divide la entrada numérica por uno o más caracteres de espacio en blanco
+    const originalCodes = numericInput.split(/\s+/).map(c => c.trim()).filter(Boolean);
 
     const uniqueCodesSet = new Set(originalCodes);
     const uniqueCodes = [...uniqueCodesSet];
     const duplicatesRemoved = originalCodes.length - uniqueCodes.length;
 
-    // Mostrar mensaje de duplicados *antes* de generar, si los hubo
-    if (duplicatesRemoved > 0 && !infoMessageDiv.textContent) { // Solo mostrar si no hay otro mensaje
+    if (duplicatesRemoved > 0 && !infoMessageDiv.textContent) {
       displayInfoMessage(`Se eliminaron ${duplicatesRemoved} duplicados.`, 4000);
     } else if (duplicatesRemoved === 0) {
-      // Limpiar mensaje si no hubo duplicados y no hay otro mensaje activo
-       // infoMessageDiv.textContent = ""; // Evitar limpiar mensajes activos
+        // infoMessageDiv.textContent = ""; // Evitar limpiar mensajes activos
     }
-
 
     uniqueCodes.forEach(code => {
       const div = document.createElement("div");
@@ -368,17 +350,39 @@
             format: "CODE128",
             width: 2,
             height: 50,
-            displayValue: true, // Dejar que JsBarcode maneje el texto
+            displayValue: true,
             margin: 5,
-            fontSize: 11 // Tamaño fuente texto JsBarcode
+            fontSize: 11
         });
         div.appendChild(svg);
 
         div.addEventListener("click", (event) => {
           if (event.target.closest('button') || event.target.closest('a') || event.target.closest('.scan-marker-icon')) return;
-          div.classList.toggle("used");
-          updateUsedCodes(code, div.classList.contains("used"));
+
+          const svgElement = div.querySelector('svg');
+          if (svgElement) {
+            svgElement.remove(); // Elimina el SVG del código de barras
+            div.classList.add("used"); // Opcional: Puedes mantener la clase "used" para otro propósito si lo deseas
+            div.textContent = `✅️ ${code} ✅️`; // Muestra el valor numérico con marcas
+            updateUsedCodes(code, true); // Actualiza la lista de códigos usados
+          } else {
+            // Si ya se hizo clic antes y se reemplazó, puedes revertir si lo deseas
+            div.textContent = '';
+            const newSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            JsBarcode(newSvg, code, {
+                format: "CODE128",
+                width: 2,
+                height: 50,
+                displayValue: true,
+                margin: 5,
+                fontSize: 11
+            });
+            div.appendChild(newSvg);
+            div.classList.remove("used");
+            updateUsedCodes(code, false);
+          }
         });
+
         outputDiv.appendChild(div);
       } catch (e) {
           console.error(`Error generando código "${code}":`, e);
@@ -633,7 +637,7 @@
   // --- Ayuda Simple ---
   function showHelp() {
       const helpText = `Funciones:
-      - Generar: Crea códigos desde el texto (separados por espacio, tab o línea nueva; sin duplicados).
+      - Generar: Crea códigos desde el texto (separados por espacio, tab o línea nueva; sin duplicados; solo números).
       - Limpiar: Borra entrada y códigos generados.
       - Vista: Cambia entre lista y cuadrícula.
       - PDF: Guarda los códigos generados en PDF.
