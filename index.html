@@ -202,12 +202,17 @@
         background: var(--input-bg);
         border-radius: 6px;
         overflow: hidden;
+        max-width: 400px; /* Ancho máximo del escáner */
+        margin-left: auto;
+        margin-right: auto;
     }
-    #reader { margin: 0 auto; }
+    #reader { margin: 0 auto; position: relative; }
     #reader video {
         display: block;
         width: 100% !important;
         height: auto !important;
+        aspect-ratio: 16 / 9; /* Relación de aspecto horizontal */
+        object-fit: cover; /* Cubrir el contenedor sin distorsionar */
     }
 
     /* --- Botones Flotantes (Ayuda y Tema) --- */
@@ -232,7 +237,7 @@
 
     /* --- Estilos Buscador --- */
     #search-container {
-        display: flex;
+        display: none; /* Ocultar inicialmente */
         align-items: center;
         justify-content: center;
         margin-bottom: 15px;
@@ -326,6 +331,7 @@
   const scannerContainer = document.getElementById('scanner-container');
   const readerDiv = document.getElementById('reader');
   const themeToggleBtn = document.getElementById('theme-toggle');
+  const searchContainerDiv = document.getElementById('search-container');
 
   // --- Funciones de Utilidad ---
   function displayInfoMessage(message, duration = 3500) { // Duración más corta
@@ -345,8 +351,10 @@
     localStorage.setItem('barcodeInput', rawInput); // Guarda el input en localStorage
     outputDiv.innerHTML = "";
     savePdfBtn.style.display = rawInput ? "inline-block" : "none";
+    searchContainerDiv.style.display = rawInput ? "flex" : "none"; // Mostrar buscador si hay input
     if (!rawInput) {
         infoMessageDiv.textContent = "";
+        searchContainerDiv.style.display = "none"; // Ocultar si no hay input
         return;
     }
 
@@ -450,6 +458,8 @@
     outputDiv.innerHTML = "";
     savePdfBtn.style.display = "none";
     infoMessageDiv.textContent = "";
+    searchContainerDiv.style.display = "none"; // Ocultar buscador al limpiar
+    localStorage.removeItem('barcodeInput'); // Limpiar input guardado
     if (isScannerActive) stopScanner(); // Detener escáner si está activo
   }
 
@@ -682,8 +692,9 @@
       if (code === searchTerm) {
         item.classList.add('search-highlight');
         found = true;
-        // Iniciar el efecto de parpadeo
-        startBlink(item);
+        item.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); // Scroll al elemento
+        // Iniciar el efecto de parpadeo más rápido
+        startBlink(item, 250); // Intervalo más corto para parpadeo más rápido
       }
     });
 
@@ -692,8 +703,7 @@
     }
   }
 
-  function startBlink(element) {
-    const interval = 500; // Intervalo de tiempo entre cambios de opacidad (en milisegundos)
+  function startBlink(element, interval = 500) { // Intervalo como parámetro
     let opacity = 1;
     let direction = -0.1; // Dirección inicial del cambio de opacidad (hacia abajo)
     const minOpacity = 0.4;
@@ -742,7 +752,7 @@
   function showHelp() {
       const helpText = `Funciones:
       - Generar: Crea códigos desde el texto (separados por espacio, tab o línea nueva; sin duplicados; solo números).
-      - Limpiar: Borra entrada y códigos generados.
+      - Limpiar: Borra entrada y códigos generados, y reinicia la página.
       - Vista: Cambia entre lista y cuadrícula.
       - PDF: Guarda los códigos generados en PDF.
       - Eliminar Usados: Quita códigos marcados (clic en código para marcar/desmarcar).
