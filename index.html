@@ -749,17 +749,24 @@
   }
 
   // --- Ayuda Simple ---
-  function showHelp() {
-      const helpText = `Funciones:
-      - Generar: Crea códigos desde el texto (separados por espacio, tab o línea nueva; sin duplicados; solo números).
-      - Limpiar: Borra entrada y códigos generados, y reinicia la página.
-      - Vista: Cambia entre lista y cuadrícula.
-      - PDF: Guarda los códigos generados en PDF.
-      - Eliminar Usados: Quita códigos marcados (clic en código para marcar/desmarcar).
-      - Escanear: Usa la cámara para añadir códigos (requiere HTTPS).
-      - Marcar/Desmarcar: Haz clic en un código para tacharlo (usado).
-      - 🌙 / ☀️: Cambia entre modo claro y oscuro.
-      - Lupa: Busca un código y lo destaca con un parpadeo.`;
+    function showHelp() {
+      const helpText = `**Ayuda: Barcode Toolbox**
+
+      **Funciones:**
+
+      * **Generar:** Crea códigos de barras a partir del texto ingresado. Los códigos deben ser números y pueden estar separados por espacios, tabuladores o saltos de línea. Se eliminan los códigos duplicados.
+      * **Limpiar:** Borra el contenido del área de entrada y los códigos de barras generados. También reinicia el almacenamiento local para que la página cargue en blanco.
+      * **Vista:** Cambia la presentación de los códigos de barras entre una lista vertical y una cuadrícula.
+      * **PDF:** Guarda los códigos de barras generados en un archivo PDF.
+      * **Eliminar Usados:** Elimina de la lista y de la memoria los códigos que han sido marcados como "usados".
+      * **Escanear:** Utiliza la cámara de tu dispositivo (requiere conexión segura HTTPS) para leer códigos de barras y añadirlos a la lista.
+      * **Marcar/Desmarcar (Usado):** Haz clic en un código de barras para marcarlo como "usado". Su representación visual cambiará a "✅️ [número] ✅️". Vuelve a hacer clic para revertir.
+      * **Tema (🌙 / ☀️):** Cambia entre el modo de visualización claro y oscuro.
+      * **Buscar (🔍):** Ingresa un código numérico en el campo de búsqueda y haz clic en la lupa. La herramienta hará scroll hasta el código coincidente y lo resaltará con un efecto de parpadeo.
+
+      ---
+      Desarrollado por fgalaz - v2026
+      `;
       alert(helpText);
   }
 
