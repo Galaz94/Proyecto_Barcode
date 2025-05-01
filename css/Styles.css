@@ -1,0 +1,260 @@
+/* --- Variables CSS para Theming (Solo UI General) --- */
+:root {
+  --bg-color: #f7f7f7;
+  --text-color: #333;
+  --input-bg: #fff;
+  --input-border: #ccc;
+  --button-bg: #e0e0e0;
+  --button-text: #333;
+  --button-hover-bg: #d5d5d5;
+  --info-text-color: #666;
+  --error-color: #d9534f;
+  --footer-color: gray;
+  --link-color: #007bff; /* Para foco en textarea */
+
+  /* Colores fijos para códigos de barras */
+  --barcode-bg: #ffffff;
+  --barcode-border: #eeeeee;
+  --barcode-text-color: #000000;
+  --used-strike-color-light: red;
+  --scanner-marker-color-light: #007bff;
+}
+
+body.dark-mode {
+  --bg-color: #2d2d2d;
+  --text-color: #f1f1f1;
+  --input-bg: #3a3a3a;
+  --input-border: #555;
+  --button-bg: #555;
+  --button-text: #f1f1f1;
+  --button-hover-bg: #666;
+  --info-text-color: #aaa;
+  --error-color: #f87171;
+  --footer-color: #aaa;
+  --link-color: #58a6ff;
+
+  /* Colores específicos modo oscuro (UI) */
+  --used-strike-color-dark: #ff7b7b;
+  --scanner-marker-color-dark: #58a6ff;
+}
+
+/* --- Estilos Generales --- */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  padding: 10px; /* Reducir padding general */
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition: background-color 0.3s, color 0.3s;
+  margin: 0;
+  line-height: 1.5;
+}
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 5px; /* Ajustar padding */
+}
+h1 {
+    text-align: center;
+    color: var(--text-color);
+    margin-top: 35px; /* Espacio para botones flotantes */
+    margin-bottom: 1rem;
+    font-size: 1.8em;
+}
+textarea {
+  width: 100%;
+  height: 100px; /* Volver a tamaño anterior */
+  margin-bottom: 10px;
+  box-sizing: border-box;
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  padding: 8px;
+  transition: background-color 0.3s, border-color 0.3s, box-shadow 0.2s;
+  font-size: 1rem;
+}
+ textarea:focus {
+  outline: none;
+  border-color: var(--link-color);
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2); /* Usar un color fijo para el shadow */
+  body.dark-mode & {
+     box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.25); /* Shadow para dark mode */
+  }
+}
+button {
+  padding: 9px 14px; /* Ajustar padding botones */
+  margin: 4px; /* Espacio entre botones */
+  cursor: pointer;
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border: none;
+  border-radius: 6px;
+  transition: background-color 0.2s, opacity 0.2s;
+  font-size: 0.9rem; /* Tamaño fuente botones */
+  vertical-align: middle; /* Alinear mejor */
+}
+button:hover:not(:disabled) {
+  background-color: var(--button-hover-bg);
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.button-group {
+    margin-bottom: 15px;
+    text-align: center; /* Centrar botones */
+    display: flex; /* Usar flexbox */
+    flex-wrap: wrap; /* Permitir que los botones bajen */
+    justify-content: center; /* Centrar botones horizontalmente */
+    gap: 8px; /* Espacio entre botones con flex */
+}
+/* --- Estilos Output Códigos --- */
+#output { margin-top: 15px; }
+#output.list .barcode-item { margin: 10px 0; }
+#output.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); /* Ajustar tamaño mínimo */
+    gap: 10px;
+}
+.barcode-item {
+  background: var(--barcode-bg); /* Fondo fijo blanco */
+  padding: 10px;
+  border: 1px solid var(--barcode-border); /* Borde fijo claro */
+  border-radius: 8px;
+  text-align: center;
+  position: relative;
+  word-wrap: break-word;
+  overflow: hidden;
+}
+.barcode-item.used { position: relative; }
+.barcode-item svg {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto 5px auto;
+}
+.barcode-item svg text {
+  fill: var(--barcode-text-color) !important; /* Texto siempre negro */
+  font-size: 11px !important; /* Texto código un poco más pequeño */
+  font-family: monospace;
+}
+.scan-marker-icon {
+    position: absolute;
+    top: 5px; /* Ajustar posición */
+    right: 5px;
+    font-size: 1rem; /* Ajustar tamaño */
+    /* Usar la variable correcta según el modo */
+    color: var(--scanner-marker-color-light);
+     body.dark-mode & {
+        color: var(--scanner-marker-color-dark);
+     }
+    cursor: default;
+    z-index: 2;
+    opacity: 0.8; /* Un poco más sutil */
+}
+.barcode-error {
+  color: var(--error-color);
+  padding: 8px;
+  font-size: 0.85em;
+  text-align: center;
+  border: 1px dashed var(--error-color);
+  border-radius: 6px;
+  margin: 10px 0;
+  background-color: rgba(217, 83, 79, 0.05);
+  body.dark-mode & {
+     background-color: rgba(248, 113, 113, 0.1);
+  }
+}
+#info-message {
+    font-size: 0.85em;
+    color: var(--info-text-color);
+    margin-bottom: 10px;
+    min-height: 1.1em;
+    text-align: center;
+}
+footer {
+  margin-top: 25px;
+  padding-top: 10px;
+  border-top: 1px solid var(--input-border);
+  font-size: 0.8em; /* Footer más pequeño */
+  color: var(--footer-color);
+  text-align: center;
+}
+footer strong {
+    font-weight: 600;
+}
+
+/* --- Estilos Escáner --- */
+#scanner-controls {
+    text-align: center;
+    margin: 10px 0; /* Menos margen */
+}
+#scanner-container {
+    margin-top: 10px;
+    border: 1px solid var(--input-border);
+    background: var(--input-bg);
+    border-radius: 6px;
+    overflow: hidden;
+    max-width: 400px; /* Ancho máximo del escáner */
+    margin-left: auto;
+    margin-right: auto;
+}
+#reader { margin: 0 auto; position: relative; }
+#reader video {
+    display: block;
+    width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 16 / 9; /* Relación de aspecto horizontal */
+    object-fit: cover; /* Cubrir el contenedor sin distorsionar */
+}
+
+/* --- Botones Flotantes (Ayuda y Tema) --- */
+.floating-buttons {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10; /* Encima del contenido normal */
+}
+.floating-buttons button {
+    background: none;
+    border: none;
+    font-size: 1.5rem; /* Íconos grandes */
+    padding: 5px;
+    margin-left: 5px;
+    opacity: 0.8;
+}
+ .floating-buttons button:hover {
+    opacity: 1;
+    background: none; /* Sin fondo al pasar el mouse */
+ }
+
+/* --- Estilos Buscador --- */
+#search-container {
+    display: none; /* Ocultar inicialmente */
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 15px;
+}
+#search-input {
+    padding: 8px;
+    margin-right: 5px;
+    border: 1px solid var(--input-border);
+    border-radius: 6px;
+    background-color: var(--input-bg);
+    color: var(--text-color);
+}
+#search-input:focus {
+  outline: none;
+  border-color: var(--link-color);
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2); /* Usar un color fijo para el shadow */
+  body.dark-mode & {
+     box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.25); /* Shadow para dark mode */
+  }
+}
+#search-container button {
+    padding: 8px 10px;
+}
+
+.search-highlight {
+  border: 2px solid orange !important; /* Ejemplo de borde naranja */
+}
