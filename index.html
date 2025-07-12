@@ -346,6 +346,7 @@
   let scannedCodes = new Set(JSON.parse(localStorage.getItem('scannedCodes') || "[]"));
   let html5QrCode = null;
   let isScannerActive = false;
+  const MIN_CODE_LENGTH = 5;
 
   const outputDiv = document.getElementById("output");
   const inputTextArea = document.getElementById("input");
@@ -362,7 +363,7 @@
     toast: true,
     position: 'top-end',
     showConfirmButton: false,
-    timer: 3500, // Un poco más de tiempo para mensajes importantes
+    timer: 3500,
     timerProgressBar: true,
     didOpen: (toast) => {
       toast.addEventListener('mouseenter', Swal.stopTimer);
@@ -404,13 +405,11 @@
       showToast(`Se eliminaron ${duplicatesRemoved} duplicados`, 'info');
     }
 
-    // --- NUEVA LÓGICA: Filtrar códigos por longitud ---
-    const MIN_LENGTH = 5;
     const validCodes = [];
     const shortCodes = [];
 
     uniqueCodes.forEach(code => {
-        if (code.length >= MIN_LENGTH) {
+        if (code.length >= MIN_CODE_LENGTH) {
             validCodes.push(code);
         } else {
             shortCodes.push(code);
@@ -418,9 +417,8 @@
     });
 
     if (shortCodes.length > 0) {
-        showToast(`${shortCodes.length} código(s) ignorado(s) por tener menos de ${MIN_LENGTH} dígitos.`, 'warning');
+        showToast(`${shortCodes.length} código(s) ignorado(s) por tener menos de ${MIN_CODE_LENGTH} dígitos.`, 'warning');
     }
-    // --- FIN DE LA NUEVA LÓGICA ---
 
     savePdfBtn.style.display = validCodes.length > 0 ? "inline-block" : "none";
     searchContainerDiv.style.display = validCodes.length > 0 ? "flex" : "none";
@@ -501,7 +499,7 @@
   function confirmClear() {
     const inputHasValue = inputTextArea.value.trim().length > 0;
     if (!inputHasValue) {
-        clearInput(false); // No mostrar toast si no había nada
+        clearInput(false);
         return;
     }
     Swal.fire({
@@ -570,40 +568,49 @@
     });
   }
 
-  // --- Funciones Escáner ---
+  // --- Funciones Escáner (Lógica actualizada) ---
   function onScanSuccess(decodedText, decodedResult) {
-    console.log(`Código leído: ${decodedText}`);
+    if (!isScannerActive) return; // Evitar ejecuciones si ya se detuvo
+
+    html5QrCode.pause(true); // Pausar el escáner y el video
+
     const codeToAdd = decodedText.trim();
-    
-    if (codeToAdd.length < 5) { // También validar en el escáner
+
+    if (codeToAdd.length < MIN_CODE_LENGTH) {
         showToast(`Código "${codeToAdd}" demasiado corto`, 'warning');
+        if (isScannerActive) html5QrCode.resume(); // Reanudar si es corto
         return;
     }
+    
+    Swal.fire({
+        title: 'Código detectado',
+        text: `¿Deseas añadir el código "${codeToAdd}" a la lista?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Añadir',
+        cancelButtonText: 'Cancelar',
+        allowOutsideClick: false
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const currentText = inputTextArea.value.trim();
+            const codeExists = currentText.split(/\s+/).some(line => line.trim() === codeToAdd);
 
-    const currentText = inputTextArea.value.trim();
-    const codeExists = currentText.split(/\s+/).some(line => line.trim() === codeToAdd);
-
-    if (!codeExists) {
-        inputTextArea.value = currentText ? `${currentText}\n${codeToAdd}` : codeToAdd;
-        scannedCodes.add(codeToAdd);
-        localStorage.setItem('scannedCodes', JSON.stringify([...scannedCodes]));
-        showToast(`"${codeToAdd}" añadido (📷)`, 'success');
-        generateBarcodes();
-    } else {
-        showToast(`"${codeToAdd}" ya existe`, 'info');
-        const itemDiv = outputDiv.querySelector(`.barcode-item[data-code="${codeToAdd}"]`);
-        if (itemDiv && !itemDiv.querySelector('.scan-marker-icon')) {
-             if (!scannedCodes.has(codeToAdd)) {
+            if (!codeExists) {
+                inputTextArea.value = currentText ? `${currentText}\n${codeToAdd}` : codeToAdd;
                 scannedCodes.add(codeToAdd);
                 localStorage.setItem('scannedCodes', JSON.stringify([...scannedCodes]));
-             }
-             const topMarker = document.createElement("span");
-             topMarker.className = 'scan-marker-icon';
-             topMarker.title = 'Escaneado';
-             topMarker.textContent = '📷';
-             itemDiv.appendChild(topMarker);
+                showToast(`"${codeToAdd}" añadido con éxito`, 'success');
+                generateBarcodes();
+            } else {
+                showToast(`"${codeToAdd}" ya estaba en la lista`, 'info');
+            }
         }
-    }
+    }).finally(() => {
+        // Reanudar el escáner solo si no fue detenido manualmente mientras el modal estaba abierto
+        if (isScannerActive) {
+            html5QrCode.resume();
+        }
+    });
   }
 
   function onScanFailure(error) { /* Ignorar errores comunes */ }
@@ -636,20 +643,19 @@
   }
 
  function stopScanner() {
-    if (html5QrCode && isScannerActive) {
+    isScannerActive = false; // Marcar como inactivo primero para evitar que se reanude
+    if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().then(ignore => {
             console.log("Scanner detenido.");
             showToast('Escáner detenido', 'info');
         }).catch(err => {
             console.error("Error al detener scanner:", err);
         }).finally(() => {
-            isScannerActive = false;
             scannerContainer.style.display = 'none';
             startScanBtn.style.display = 'inline-block';
             stopScanBtn.style.display = 'none';
         });
     } else {
-        isScannerActive = false;
         scannerContainer.style.display = 'none';
         startScanBtn.style.display = 'inline-block';
         stopScanBtn.style.display = 'none';
@@ -776,13 +782,10 @@
             <ul style="padding-left: 1.5em; margin-top: 1em;">
               <li><b>Generar:</b> Crea códigos a partir de números con <b>5 o más dígitos</b>.</li>
               <li><b>Limpiar:</b> Borra la entrada y los códigos generados.</li>
-              <li><b>Vista:</b> Alterna entre vista de lista y cuadrícula.</li>
-              <li><b>PDF:</b> Exporta los códigos visibles a un archivo PDF.</li>
-              <li><b>Eliminar Usados:</b> Quita de la lista los códigos marcados como usados.</li>
-              <li><b>Escanear:</b> Usa la cámara para añadir códigos a la lista (requiere HTTPS).</li>
+              <li><b>Escanear:</b> Usa la cámara para leer códigos. Al detectar uno, se pausará y te preguntará si deseas añadirlo antes de continuar.</li>
               <li><b>Marcar/Desmarcar:</b> Haz clic en un código para marcarlo como "usado" o revertir.</li>
+              <li><b>PDF:</b> Exporta los códigos visibles a un archivo PDF.</li>
               <li><b>Buscar (🔍):</b> Resalta un código específico en la lista.</li>
-              <li><b>Tema (🌙/☀️):</b> Cambia entre modo claro y oscuro.</li>
             </ul>
             <hr style="margin: 1.5em 0;">
             <p style="font-size: 0.9em;">Desarrollado por fgalaz - v2026</p>
@@ -813,9 +816,6 @@
           inputTextArea.value = storedInput;
           generateBarcodes();
       }
-      
-      // Opcional: activar la generación automática al escribir
-      // inputTextArea.addEventListener('input', debounce(generateBarcodes));
   });
 
 </script>
