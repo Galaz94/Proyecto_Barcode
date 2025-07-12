@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Barcode Toolbox</title>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     /* --- Variables CSS para Theming (Solo UI General) --- */
     :root {
@@ -44,6 +45,25 @@
       --used-strike-color-dark: #ff7b7b;
       --scanner-marker-color-dark: #58a6ff;
     }
+    
+    /* --- Estilos SweetAlert2 para Theming --- */
+    body.dark-mode .swal2-popup {
+        background-color: #2d2d2d !important;
+        color: #f1f1f1 !important;
+    }
+    body.dark-mode .swal2-title {
+        color: #f1f1f1 !important;
+    }
+    body.dark-mode .swal2-html-container {
+        color: #f1f1f1 !important;
+    }
+    body.dark-mode .swal2-confirm {
+        background-color: #555 !important;
+    }
+    body.dark-mode .swal2-cancel {
+        background-color: #444 !important;
+    }
+
 
     /* --- Estilos Generales --- */
     * { /* Añadido para compatibilidad iOS */
@@ -290,9 +310,7 @@
         <button onclick="searchBarcode()">🔍</button>
     </div>
 
-    <div id="info-message"></div>
-
-    <textarea id="input" placeholder="Pega aquí tus códigos (separados por espacio, tabulador o salto de línea)..." aria-label="Entrada de códigos"></textarea>
+    <textarea id="input" placeholder="Pega aquí tus códigos..." aria-label="Entrada de códigos"></textarea>
 
     <div class="button-group">
         <button onclick="generateBarcodes()">🔄 Generar</button>
@@ -326,10 +344,9 @@
   // --- Variables Globales y Selectores ---
   let usedCodes = JSON.parse(localStorage.getItem('usedCodes') || "[]");
   let scannedCodes = new Set(JSON.parse(localStorage.getItem('scannedCodes') || "[]"));
-  let html5QrCode = null; // Renombrado para evitar conflicto con la clase
-  let isScannerActive = false; // Flag para estado del escáner
+  let html5QrCode = null;
+  let isScannerActive = false;
 
-  const infoMessageDiv = document.getElementById("info-message");
   const outputDiv = document.getElementById("output");
   const inputTextArea = document.getElementById("input");
   const savePdfBtn = document.getElementById('savePdf');
@@ -340,45 +357,52 @@
   const themeToggleBtn = document.getElementById('theme-toggle');
   const searchContainerDiv = document.getElementById('search-container');
 
-  // --- Funciones de Utilidad ---
-  function displayInfoMessage(message, duration = 3500) { // Duración más corta
-    infoMessageDiv.textContent = message;
-    infoMessageDiv.style.opacity = '1'; // Asegurar visibilidad
-    if (duration > 0) {
-      setTimeout(() => {
-          infoMessageDiv.style.opacity = '0'; // Desvanecer
-          setTimeout(() => { infoMessageDiv.textContent = ""; }, 300); // Limpiar después de desvanecer
-      }, duration);
+  // --- Funciones de Notificación (Toast) ---
+  const Toast = Swal.mixin({
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timer: 3000,
+    timerProgressBar: true,
+    didOpen: (toast) => {
+      toast.addEventListener('mouseenter', Swal.stopTimer);
+      toast.addEventListener('mouseleave', Swal.resumeTimer);
+      // Aplicar estilo dark si es necesario
+      const bodyIsDark = document.body.classList.contains('dark-mode');
+      if (bodyIsDark) {
+          toast.classList.add('swal2-toast-dark');
+          const title = toast.querySelector('.swal2-title');
+          if (title) title.style.color = '#f1f1f1';
+      }
     }
+  });
+
+  function showToast(message, type = 'info') {
+    Toast.fire({
+      icon: type,
+      title: message
+    });
   }
 
   // --- Funciones Principales ---
   function generateBarcodes() {
     const rawInput = inputTextArea.value.trim();
-    localStorage.setItem('barcodeInput', rawInput); // Guarda el input en localStorage
+    localStorage.setItem('barcodeInput', rawInput);
     outputDiv.innerHTML = "";
     savePdfBtn.style.display = rawInput ? "inline-block" : "none";
-    searchContainerDiv.style.display = rawInput ? "flex" : "none"; // Mostrar buscador si hay input
+    searchContainerDiv.style.display = rawInput ? "flex" : "none";
     if (!rawInput) {
-        infoMessageDiv.textContent = "";
-        searchContainerDiv.style.display = "none"; // Ocultar si no hay input
+        searchContainerDiv.style.display = "none";
         return;
     }
 
-    // Filtra la entrada para mantener solo números
     const numericInput = rawInput.replace(/[^0-9\s\t\n]+/g, '');
-
-    // Divide la entrada numérica por uno o más caracteres de espacio en blanco
     const originalCodes = numericInput.split(/\s+/).map(c => c.trim()).filter(Boolean);
-
-    const uniqueCodesSet = new Set(originalCodes);
-    const uniqueCodes = [...uniqueCodesSet];
+    const uniqueCodes = [...new Set(originalCodes)];
     const duplicatesRemoved = originalCodes.length - uniqueCodes.length;
 
-    if (duplicatesRemoved > 0 && !infoMessageDiv.textContent) {
-      displayInfoMessage(`Se eliminaron ${duplicatesRemoved} duplicados.`, 4000);
-    } else if (duplicatesRemoved === 0) {
-        // infoMessageDiv.textContent = ""; // Evitar limpiar mensajes activos
+    if (duplicatesRemoved > 0) {
+      showToast(`Se eliminaron ${duplicatesRemoved} duplicados`, 'info');
     }
 
     uniqueCodes.forEach(code => {
@@ -386,11 +410,8 @@
       div.className = "barcode-item";
       div.dataset.code = code;
 
-      const isUsed = usedCodes.includes(code);
-      if (isUsed) div.classList.add("used");
-
-      const isScanned = scannedCodes.has(code);
-      if (isScanned) {
+      if (usedCodes.includes(code)) div.classList.add("used");
+      if (scannedCodes.has(code)) {
         const topMarker = document.createElement("span");
         topMarker.className = 'scan-marker-icon';
         topMarker.title = 'Escaneado';
@@ -401,16 +422,12 @@
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       try {
         JsBarcode(svg, code, {
-            format: "CODE128",
-            width: 2,
-            height: 50,
-            displayValue: true,
-            margin: 5,
-            fontSize: 11 // JsBarcode se encarga del tamaño del texto dentro del SVG
+            format: "CODE128", width: 2, height: 50, displayValue: true,
+            margin: 5, fontSize: 11
         });
         div.appendChild(svg);
 
-        if (isUsed) { // Si el código ya estaba usado, aplicar los cambios visuales
+        if (usedCodes.includes(code)) {
           svg.remove();
           div.innerHTML = `✅️ <i>${code}</i> ✅️`;
         }
@@ -420,24 +437,18 @@
 
           const svgElement = div.querySelector('svg');
           if (svgElement) {
-            svgElement.remove(); // Elimina el SVG del código de barras
-            div.classList.add("used"); // Opcional: Puedes mantener la clase "used" para otro propósito si lo deseas
-            div.innerHTML = `✅️ <i>${code}</i> ✅️`; // Muestra el valor numérico en itálicas con marcas
-            updateUsedCodes(code, true); // Actualiza la lista de códigos usados
+            svgElement.remove();
+            div.classList.add("used");
+            div.innerHTML = `✅️ <i>${code}</i> ✅️`;
+            updateUsedCodes(code, true);
           } else {
-            // Si ya se hizo clic antes y se reemplazó, puedes revertir si lo deseas
             div.innerHTML = '';
             const newSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
             JsBarcode(newSvg, code, {
-                format: "CODE128",
-                width: 2,
-                height: 50,
-                displayValue: true,
-                margin: 5,
-                fontSize: 11
+                format: "CODE128", width: 2, height: 50, displayValue: true,
+                margin: 5, fontSize: 11
             });
-            const isScannedAgain = scannedCodes.has(code);
-            if (isScannedAgain) {
+            if (scannedCodes.has(code)) {
                 const topMarkerAgain = document.createElement("span");
                 topMarkerAgain.className = 'scan-marker-icon';
                 topMarkerAgain.title = 'Escaneado';
@@ -464,10 +475,10 @@
     inputTextArea.value = "";
     outputDiv.innerHTML = "";
     savePdfBtn.style.display = "none";
-    infoMessageDiv.textContent = "";
-    searchContainerDiv.style.display = "none"; // Ocultar buscador al limpiar
-    localStorage.removeItem('barcodeInput'); // Limpiar input guardado
-    if (isScannerActive) stopScanner(); // Detener escáner si está activo
+    searchContainerDiv.style.display = "none";
+    localStorage.removeItem('barcodeInput');
+    if (isScannerActive) stopScanner();
+    showToast('Limpieza completada', 'success');
   }
 
   function updateUsedCodes(code, isUsed) {
@@ -482,23 +493,34 @@
 
   function changeLayout() {
     outputDiv.className = (outputDiv.className === "list") ? "grid" : "list";
+    showToast(`Vista cambiada a ${outputDiv.className}`, 'info');
   }
 
   function removeUsedCodes() {
     if (usedCodes.length === 0) {
-        displayInfoMessage("No hay códigos marcados como 'usados'.", 3000);
+        showToast("No hay códigos marcados como 'usados'", 'warning');
         return;
     }
-    if (confirm(`¿Eliminar ${usedCodes.length} código(s) 'usado(s)' de la lista y memoria?`)) {
-      let currentCodes = inputTextArea.value.trim().split(/\s+/).map(c => c.trim()).filter(Boolean);
-      let keptCodes = currentCodes.filter(code => !usedCodes.includes(code));
-      inputTextArea.value = keptCodes.join("\n");
-      const removedCount = usedCodes.length;
-      usedCodes = [];
-      localStorage.removeItem('usedCodes');
-      generateBarcodes();
-      displayInfoMessage(`${removedCount} código(s) 'usado(s)' eliminado(s).`, 4000);
-    }
+    
+    Swal.fire({
+      title: '¿Estás seguro?',
+      text: `Se eliminarán ${usedCodes.length} código(s) 'usado(s)' de la lista y la memoria.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, ¡eliminar!',
+      cancelButtonText: 'Cancelar'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        let currentCodes = inputTextArea.value.trim().split(/\s+/).map(c => c.trim()).filter(Boolean);
+        let keptCodes = currentCodes.filter(code => !usedCodes.includes(code));
+        inputTextArea.value = keptCodes.join("\n");
+        const removedCount = usedCodes.length;
+        usedCodes = [];
+        localStorage.removeItem('usedCodes');
+        generateBarcodes();
+        showToast(`${removedCount} código(s) eliminado(s)`, 'success');
+      }
+    });
   }
 
   // --- Funciones Escáner ---
@@ -513,10 +535,10 @@
         inputTextArea.value = currentText ? `${currentText}\n${codeToAdd}` : codeToAdd;
         scannedCodes.add(codeToAdd);
         localStorage.setItem('scannedCodes', JSON.stringify([...scannedCodes]));
-        displayInfoMessage(`"${codeToAdd}" añadido (📷).`, 3000);
+        showToast(`"${codeToAdd}" añadido (📷)`, 'success');
         generateBarcodes();
     } else {
-        displayInfoMessage(`"${codeToAdd}" ya existe.`, 3000);
+        showToast(`"${codeToAdd}" ya existe`, 'info');
         const itemDiv = outputDiv.querySelector(`.barcode-item[data-code="${codeToAdd}"]`);
         if (itemDiv && !itemDiv.querySelector('.scan-marker-icon')) {
              if (!scannedCodes.has(codeToAdd)) {
@@ -532,14 +554,11 @@
     }
   }
 
-  function onScanFailure(error) {
-     // Ignorar errores comunes como "No QR code found."
-     // console.warn(`Scan error: ${error}`);
-  }
+  function onScanFailure(error) { /* Ignorar errores comunes */ }
 
   function startScanner() {
       if (location.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(location.hostname)) {
-         alert('El escáner requiere una conexión segura (HTTPS) o localhost.');
+         Swal.fire('Conexión Insegura', 'El escáner requiere una conexión segura (HTTPS) o ser ejecutado en localhost.', 'error');
          return;
       }
       if (isScannerActive) return;
@@ -548,29 +567,19 @@
       startScanBtn.style.display = 'none';
       stopScanBtn.style.display = 'inline-block';
       readerDiv.innerHTML = '';
-
       html5QrCode = new Html5Qrcode("reader");
       isScannerActive = true;
 
-      const config = {
-            fps: 10,
-            qrbox: { width: 250, height: 150 },
-            rememberLastUsedCamera: true
-      };
+      const config = { fps: 10, qrbox: { width: 250, height: 150 }, rememberLastUsedCamera: true };
 
-      html5QrCode.start(
-          { facingMode: "environment" },
-          config,
-          onScanSuccess,
-          onScanFailure
-      ).catch(err => {
+      html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure)
+      .catch(err => {
           console.error("Error al iniciar escáner:", err);
-          alert("No se pudo iniciar el escáner. Verifica los permisos de cámara.");
+          Swal.fire('Error de Cámara', 'No se pudo iniciar el escáner. Verifica los permisos de la cámara en tu navegador.', 'error');
           isScannerActive = false;
           scannerContainer.style.display = 'none';
           startScanBtn.style.display = 'inline-block';
           stopScanBtn.style.display = 'none';
-          readerDiv.innerHTML = '';
       });
   }
 
@@ -578,6 +587,7 @@
     if (html5QrCode && isScannerActive) {
         html5QrCode.stop().then(ignore => {
             console.log("Scanner detenido.");
+            showToast('Escáner detenido', 'info');
         }).catch(err => {
             console.error("Error al detener scanner:", err);
         }).finally(() => {
@@ -585,7 +595,6 @@
             scannerContainer.style.display = 'none';
             startScanBtn.style.display = 'inline-block';
             stopScanBtn.style.display = 'none';
-            readerDiv.innerHTML = '';
         });
     } else {
         isScannerActive = false;
@@ -597,119 +606,90 @@
 
   // --- Función PDF ---
   async function downloadPDF() {
-    const originalBtnText = savePdfBtn.textContent;
     savePdfBtn.disabled = true;
-    savePdfBtn.textContent = 'Generando...';
+    Swal.fire({
+        title: 'Generando PDF...',
+        text: 'Por favor, espera.',
+        allowOutsideClick: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
 
     try {
       const elementToPrint = document.createElement("div");
-      const currentOutputDiv = document.getElementById("output");
-
       const container = document.createElement("div");
-      container.style.display = "grid";
-      container.style.gridTemplateColumns = "repeat(3, 1fr)";
-      container.style.gap = "8px";
-      container.style.padding = "5mm";
+      container.style.cssText = "display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 5mm;";
 
-      currentOutputDiv.querySelectorAll(".barcode-item:not(.barcode-error)").forEach(child => {
-          const svgElement = child.querySelector("svg");
-          if (svgElement) {
-              const cleanDiv = document.createElement("div");
-              cleanDiv.style.background = "#ffffff";
-              cleanDiv.style.padding = "5px";
-              cleanDiv.style.border = "1px solid #eee";
-              cleanDiv.style.borderRadius = "4px";
-              cleanDiv.style.textAlign = "center";
-              cleanDiv.style.pageBreakInside = "avoid";
-
-              const svgClone = svgElement.cloneNode(true);
-              svgClone.style.fill = '#000000';
-              svgClone.querySelectorAll('text').forEach(textEl => {
-                  textEl.style.fill = '#000000';
-              });
-              cleanDiv.appendChild(svgClone);
-              container.appendChild(cleanDiv);
-          }
+      document.querySelectorAll("#output .barcode-item:not(.barcode-error) svg").forEach(svgElement => {
+          const cleanDiv = document.createElement("div");
+          cleanDiv.style.cssText = "background: #fff; padding: 5px; border: 1px solid #eee; border-radius: 4px; text-align: center; page-break-inside: avoid;";
+          const svgClone = svgElement.cloneNode(true);
+          svgClone.style.fill = '#000';
+          svgClone.querySelectorAll('text').forEach(textEl => { textEl.style.fill = '#000'; });
+          cleanDiv.appendChild(svgClone);
+          container.appendChild(cleanDiv);
       });
 
       elementToPrint.appendChild(container);
-
       const marca = document.createElement("div");
-      marca.style.textAlign = "center";
-      marca.style.color = "#555";
-      marca.style.marginTop = "10px";
-      marca.style.fontSize = "0.75em";
+      marca.style.cssText = "text-align: center; color: #555; margin-top: 10px; font-size: 0.75em;";
       marca.innerHTML = "Generado por: Barcode Toolbox - fgalaz <strong>v2026</strong>";
       elementToPrint.appendChild(marca);
 
       const opt = {
-        margin: 8,
-        filename: `codigos_barras_${new Date().toISOString().slice(0,10)}.pdf`,
-        image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'css'] }
+        margin: 8, filename: `codigos_barras_${new Date().toISOString().slice(0,10)}.pdf`,
+        image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 2, useCORS: true, backgroundColor: '#fff' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, pagebreak: { mode: ['avoid-all', 'css'] }
       };
 
       await html2pdf().from(elementToPrint).set(opt).save();
+      Swal.close();
+      showToast('PDF generado correctamente', 'success');
 
     } catch (error) {
       console.error("Error al generar PDF:", error);
-      alert("Hubo un error al generar el PDF.");
+      Swal.fire('Error', 'Hubo un problema al generar el PDF.', 'error');
     } finally {
       savePdfBtn.disabled = false;
-      savePdfBtn.textContent = '📄 PDF';
     }
   }
 
+  // --- Función Búsqueda ---
   function searchBarcode() {
     const searchTerm = document.getElementById('search-input').value.trim();
     if (!searchTerm) {
-      displayInfoMessage("Por favor, ingresa un código para buscar.", 3000);
+      showToast("Ingresa un código para buscar", 'warning');
       return;
     }
 
-    const barcodeItems = document.querySelectorAll('.barcode-item');
     let found = false;
-
-    barcodeItems.forEach(item => {
-      const code = item.dataset.code;
+    document.querySelectorAll('.barcode-item').forEach(item => {
       item.classList.remove('search-highlight');
-
-      if (code === searchTerm) {
+      if (item.dataset.code === searchTerm) {
         item.classList.add('search-highlight');
         found = true;
         item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        startBlink(item, 250);
+        startBlink(item);
       }
     });
 
     if (!found) {
-      displayInfoMessage(`No se encontró el código "${searchTerm}".`, 3000);
+      showToast(`No se encontró el código "${searchTerm}"`, 'error');
     }
   }
 
-  function startBlink(element, interval = 500) {
-    let opacity = 1;
-    let direction = -0.1;
-    const minOpacity = 0.4;
-    const maxOpacity = 1;
-
+  function startBlink(element) {
+    element.style.transition = 'opacity 0.25s ease-in-out';
     const blinkInterval = setInterval(() => {
-      opacity += direction;
-
-      if (opacity <= minOpacity) {
-        direction = 0.1;
-      } else if (opacity >= maxOpacity) {
-        direction = -0.1;
-      }
-      element.style.opacity = opacity;
-    }, interval);
+        element.style.opacity = (element.style.opacity === '0.4') ? '1' : '0.4';
+    }, 250);
 
     setTimeout(() => {
       clearInterval(blinkInterval);
-      element.style.opacity = 1;
-    }, 3000);
+      element.style.opacity = '1';
+      element.style.transition = '';
+    }, 2000); // Duración total del parpadeo
   }
 
   // --- Lógica Modo Noche ---
@@ -726,32 +706,38 @@
   }
 
   function toggleTheme() {
-      const currentIsDark = document.body.classList.contains('dark-mode');
-      const newTheme = currentIsDark ? 'light' : 'dark';
+      const isDark = document.body.classList.contains('dark-mode');
+      const newTheme = isDark ? 'light' : 'dark';
       applyTheme(newTheme);
       localStorage.setItem('theme', newTheme);
+      showToast(`Tema cambiado a modo ${isDark ? 'claro' : 'oscuro'}`, 'info');
   }
 
-  // --- Ayuda Simple ---
+  // --- Ayuda ---
   function showHelp() {
-      const helpText = `**Ayuda: Barcode Toolbox**
-
-      **Funciones:**
-
-      * **Generar:** Crea códigos de barras a partir del texto ingresado. Los códigos deben ser números y pueden estar separados por espacios, tabuladores o saltos de línea. Se eliminan los códigos duplicados.
-      * **Limpiar:** Borra el contenido del área de entrada y los códigos de barras generados. También reinicia el almacenamiento local para que la página cargue en blanco.
-      * **Vista:** Cambia la presentación de los códigos de barras entre una lista vertical y una cuadrícula.
-      * **PDF:** Guarda los códigos de barras generados en un archivo PDF.
-      * **Eliminar Usados:** Elimina de la lista y de la memoria los códigos que han sido marcados como "usados".
-      * **Escanear:** Utiliza la cámara de tu dispositivo (requiere conexión segura HTTPS) para leer códigos de barras y añadirlos a la lista.
-      * **Marcar/Desmarcar (Usado):** Haz clic en un código de barras para marcarlo como "usado". Su representación visual cambiará a "✅️ [número] ✅️" en itálicas. Vuelve a hacer clic para revertir.
-      * **Tema (🌙 / ☀️):** Cambia entre el modo de visualización claro y oscuro.
-      * **Buscar (🔍):** Ingresa un código numérico en el campo de búsqueda y haz clic en la lupa. La herramienta hará scroll hasta el código coincidente y lo resaltará con un efecto de parpadeo.
-
-      ---
-      Desarrollado por fgalaz - v2026
-      `;
-      alert(helpText);
+      Swal.fire({
+        title: '<strong>Ayuda: Barcode Toolbox</strong>',
+        icon: 'info',
+        html: `
+          <div style="text-align: left; padding: 0 1em;">
+            <p>Esta herramienta te permite generar, gestionar y escanear códigos de barras de forma sencilla.</p>
+            <ul style="padding-left: 1.5em; margin-top: 1em;">
+              <li><b>Generar:</b> Crea códigos a partir de los números en el área de texto.</li>
+              <li><b>Limpiar:</b> Borra la entrada y los códigos generados.</li>
+              <li><b>Vista:</b> Alterna entre vista de lista y cuadrícula.</li>
+              <li><b>PDF:</b> Exporta los códigos visibles a un archivo PDF.</li>
+              <li><b>Eliminar Usados:</b> Quita de la lista los códigos marcados como usados.</li>
+              <li><b>Escanear:</b> Usa la cámara para añadir códigos a la lista (requiere HTTPS).</li>
+              <li><b>Marcar/Desmarcar:</b> Haz clic en un código para marcarlo como "usado" o revertir.</li>
+              <li><b>Buscar (🔍):</b> Resalta un código específico en la lista.</li>
+              <li><b>Tema (🌙/☀️):</b> Cambia entre modo claro y oscuro.</li>
+            </ul>
+            <hr style="margin: 1.5em 0;">
+            <p style="font-size: 0.9em;">Desarrollado por fgalaz - v2026</p>
+          </div>
+        `,
+        confirmButtonText: '¡Entendido!'
+      });
   }
 
   // --- Inicialización ---
@@ -759,9 +745,7 @@
       const savedTheme = localStorage.getItem('theme');
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       applyTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
-
       inputTextArea.placeholder = "Pega aquí tus códigos (separados por espacio, tabulador o salto de línea)...";
-
       const storedInput = localStorage.getItem('barcodeInput');
       if (storedInput) {
           inputTextArea.value = storedInput;
