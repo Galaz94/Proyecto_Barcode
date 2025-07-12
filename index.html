@@ -297,8 +297,8 @@
 <body>
 
 <div class="floating-buttons">
-    <button id="help-button" onclick="showHelp()" title="Ayuda">❓</button>
-    <button id="theme-toggle" onclick="toggleTheme()" title="Cambiar Tema"> M </button>
+    <button id="help-button" onclick="showHelp()" title="Ayuda" aria-label="Mostrar ayuda">❓</button>
+    <button id="theme-toggle" onclick="toggleTheme()" title="Cambiar Tema" aria-label="Cambiar tema de color"> M </button>
 </div>
 
 <div class="container">
@@ -307,14 +307,14 @@
 
     <div id="search-container">
         <input type="text" id="search-input" placeholder="Ingresa código...">
-        <button onclick="searchBarcode()">🔍</button>
+        <button onclick="searchBarcode()" aria-label="Buscar código">🔍</button>
     </div>
 
     <textarea id="input" placeholder="Pega aquí tus códigos..." aria-label="Entrada de códigos"></textarea>
 
     <div class="button-group">
         <button onclick="generateBarcodes()">🔄 Generar</button>
-        <button onclick="clearInput()">🧹 Limpiar</button>
+        <button onclick="confirmClear()">🧹 Limpiar</button>
         <button onclick="changeLayout()">📊 Vista</button>
         <button id="savePdf" style="display:none;" onclick="downloadPDF()">📄 PDF</button>
         <button id="removeUsedBtn" onclick="removeUsedCodes()">❌ Eliminar Usados</button>
@@ -362,12 +362,11 @@
     toast: true,
     position: 'top-end',
     showConfirmButton: false,
-    timer: 3000,
+    timer: 3500, // Un poco más de tiempo para mensajes importantes
     timerProgressBar: true,
     didOpen: (toast) => {
       toast.addEventListener('mouseenter', Swal.stopTimer);
       toast.addEventListener('mouseleave', Swal.resumeTimer);
-      // Aplicar estilo dark si es necesario
       const bodyIsDark = document.body.classList.contains('dark-mode');
       if (bodyIsDark) {
           toast.classList.add('swal2-toast-dark');
@@ -389,9 +388,9 @@
     const rawInput = inputTextArea.value.trim();
     localStorage.setItem('barcodeInput', rawInput);
     outputDiv.innerHTML = "";
-    savePdfBtn.style.display = rawInput ? "inline-block" : "none";
-    searchContainerDiv.style.display = rawInput ? "flex" : "none";
+    
     if (!rawInput) {
+        savePdfBtn.style.display = "none";
         searchContainerDiv.style.display = "none";
         return;
     }
@@ -405,7 +404,35 @@
       showToast(`Se eliminaron ${duplicatesRemoved} duplicados`, 'info');
     }
 
+    // --- NUEVA LÓGICA: Filtrar códigos por longitud ---
+    const MIN_LENGTH = 5;
+    const validCodes = [];
+    const shortCodes = [];
+
     uniqueCodes.forEach(code => {
+        if (code.length >= MIN_LENGTH) {
+            validCodes.push(code);
+        } else {
+            shortCodes.push(code);
+        }
+    });
+
+    if (shortCodes.length > 0) {
+        showToast(`${shortCodes.length} código(s) ignorado(s) por tener menos de ${MIN_LENGTH} dígitos.`, 'warning');
+    }
+    // --- FIN DE LA NUEVA LÓGICA ---
+
+    savePdfBtn.style.display = validCodes.length > 0 ? "inline-block" : "none";
+    searchContainerDiv.style.display = validCodes.length > 0 ? "flex" : "none";
+
+    if (validCodes.length === 0) {
+        if(rawInput.length > 0 && shortCodes.length === 0){
+             outputDiv.innerHTML = `<div class="barcode-error">No se encontraron códigos numéricos válidos.</div>`;
+        }
+        return;
+    }
+
+    validCodes.forEach(code => {
       const div = document.createElement("div");
       div.className = "barcode-item";
       div.dataset.code = code;
@@ -433,7 +460,7 @@
         }
 
         div.addEventListener("click", (event) => {
-          if (event.target.closest('button') || event.target.closest('a') || event.target.closest('.scan-marker-icon')) return;
+          if (event.target.closest('button, a, .scan-marker-icon')) return;
 
           const svgElement = div.querySelector('svg');
           if (svgElement) {
@@ -470,15 +497,35 @@
       }
     });
   }
+  
+  function confirmClear() {
+    const inputHasValue = inputTextArea.value.trim().length > 0;
+    if (!inputHasValue) {
+        clearInput(false); // No mostrar toast si no había nada
+        return;
+    }
+    Swal.fire({
+        title: '¿Estás seguro?',
+        text: "Se borrará el contenido del área de texto y los códigos generados.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, limpiar todo',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            clearInput();
+        }
+    });
+  }
 
-  function clearInput() {
+  function clearInput(showSuccessToast = true) {
     inputTextArea.value = "";
     outputDiv.innerHTML = "";
     savePdfBtn.style.display = "none";
     searchContainerDiv.style.display = "none";
     localStorage.removeItem('barcodeInput');
     if (isScannerActive) stopScanner();
-    showToast('Limpieza completada', 'success');
+    if (showSuccessToast) showToast('Limpieza completada', 'success');
   }
 
   function updateUsedCodes(code, isUsed) {
@@ -526,9 +573,14 @@
   // --- Funciones Escáner ---
   function onScanSuccess(decodedText, decodedResult) {
     console.log(`Código leído: ${decodedText}`);
-    const currentText = inputTextArea.value.trim();
     const codeToAdd = decodedText.trim();
+    
+    if (codeToAdd.length < 5) { // También validar en el escáner
+        showToast(`Código "${codeToAdd}" demasiado corto`, 'warning');
+        return;
+    }
 
+    const currentText = inputTextArea.value.trim();
     const codeExists = currentText.split(/\s+/).some(line => line.trim() === codeToAdd);
 
     if (!codeExists) {
@@ -722,7 +774,7 @@
           <div style="text-align: left; padding: 0 1em;">
             <p>Esta herramienta te permite generar, gestionar y escanear códigos de barras de forma sencilla.</p>
             <ul style="padding-left: 1.5em; margin-top: 1em;">
-              <li><b>Generar:</b> Crea códigos a partir de los números en el área de texto.</li>
+              <li><b>Generar:</b> Crea códigos a partir de números con <b>5 o más dígitos</b>.</li>
               <li><b>Limpiar:</b> Borra la entrada y los códigos generados.</li>
               <li><b>Vista:</b> Alterna entre vista de lista y cuadrícula.</li>
               <li><b>PDF:</b> Exporta los códigos visibles a un archivo PDF.</li>
@@ -739,18 +791,31 @@
         confirmButtonText: '¡Entendido!'
       });
   }
+  
+  function debounce(func, delay = 500) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+            func.apply(this, args);
+        }, delay);
+    };
+  }
 
   // --- Inicialización ---
   document.addEventListener('DOMContentLoaded', () => {
       const savedTheme = localStorage.getItem('theme');
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       applyTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
-      inputTextArea.placeholder = "Pega aquí tus códigos (separados por espacio, tabulador o salto de línea)...";
+      inputTextArea.placeholder = "Pega aquí tus códigos (5+ dígitos, separados por espacio, tab o salto de línea)...";
       const storedInput = localStorage.getItem('barcodeInput');
       if (storedInput) {
           inputTextArea.value = storedInput;
           generateBarcodes();
       }
+      
+      // Opcional: activar la generación automática al escribir
+      // inputTextArea.addEventListener('input', debounce(generateBarcodes));
   });
 
 </script>
