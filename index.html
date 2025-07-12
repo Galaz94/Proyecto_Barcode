@@ -157,6 +157,16 @@
       position: relative;
       word-wrap: break-word;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .barcode-item p.description {
+        font-size: 0.75em;
+        margin: 5px 0 0 0;
+        color: #555;
+        font-style: italic;
     }
     .barcode-item.used { position: relative; }
     .barcode-item svg {
@@ -311,12 +321,16 @@
     </div>
 
     <textarea id="input" placeholder="Pega aquí tus códigos..." aria-label="Entrada de códigos"></textarea>
+    
+    <input type="file" id="file-upload" accept=".xlsx, .xls" style="display: none;" onchange="handleFileUpload(event)">
 
     <div class="button-group">
         <button onclick="generateBarcodes()">🔄 Generar</button>
+        <button onclick="document.getElementById('file-upload').click()">📂 Cargar Archivo</button>
         <button onclick="confirmClear()">🧹 Limpiar</button>
         <button onclick="changeLayout()">📊 Vista</button>
         <button id="savePdf" style="display:none;" onclick="downloadPDF()">📄 PDF</button>
+        <button id="downloadExcel" style="display:none;" onclick="downloadExcel()">📊 Excel</button>
         <button id="removeUsedBtn" onclick="removeUsedCodes()">❌ Eliminar Usados</button>
     </div>
 
@@ -339,11 +353,14 @@
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
 
 <script>
   // --- Variables Globales y Selectores ---
   let usedCodes = JSON.parse(localStorage.getItem('usedCodes') || "[]");
   let scannedCodes = new Set(JSON.parse(localStorage.getItem('scannedCodes') || "[]"));
+  let codeDescriptions = {}; // NEW: To store descriptions from file
   let html5QrCode = null;
   let isScannerActive = false;
   const MIN_CODE_LENGTH = 5;
@@ -351,17 +368,19 @@
   const outputDiv = document.getElementById("output");
   const inputTextArea = document.getElementById("input");
   const savePdfBtn = document.getElementById('savePdf');
+  const downloadExcelBtn = document.getElementById('downloadExcel');
   const startScanBtn = document.getElementById('startScanBtn');
   const stopScanBtn = document.getElementById('stopScanBtn');
   const scannerContainer = document.getElementById('scanner-container');
   const readerDiv = document.getElementById('reader');
   const themeToggleBtn = document.getElementById('theme-toggle');
   const searchContainerDiv = document.getElementById('search-container');
+  const fileUploadInput = document.getElementById('file-upload');
 
   // --- Funciones de Notificación (Toast) ---
   const Toast = Swal.mixin({
     toast: true,
-    position: 'top-end',
+    position: 'bottom-end', // CHANGED: Position to bottom
     showConfirmButton: false,
     timer: 3500,
     timerProgressBar: true,
@@ -391,13 +410,13 @@
     outputDiv.innerHTML = "";
     
     if (!rawInput) {
-        savePdfBtn.style.display = "none";
+        updateActionButtonsVisibility(false);
         searchContainerDiv.style.display = "none";
         return;
     }
 
-    const numericInput = rawInput.replace(/[^0-9\s\t\n]+/g, '');
-    const originalCodes = numericInput.split(/\s+/).map(c => c.trim()).filter(Boolean);
+    const numericInput = rawInput.replace(/[^0-9\s\t\n,;]+/g, '');
+    const originalCodes = numericInput.split(/[\s,;]+/).map(c => c.trim()).filter(Boolean);
     const uniqueCodes = [...new Set(originalCodes)];
     const duplicatesRemoved = originalCodes.length - uniqueCodes.length;
 
@@ -420,7 +439,7 @@
         showToast(`${shortCodes.length} código(s) ignorado(s) por tener menos de ${MIN_CODE_LENGTH} dígitos.`, 'warning');
     }
 
-    savePdfBtn.style.display = validCodes.length > 0 ? "inline-block" : "none";
+    updateActionButtonsVisibility(validCodes.length > 0);
     searchContainerDiv.style.display = validCodes.length > 0 ? "flex" : "none";
 
     if (validCodes.length === 0) {
@@ -452,13 +471,22 @@
         });
         div.appendChild(svg);
 
+        // NEW: Add description if it exists
+        const description = codeDescriptions[code];
+        if (description) {
+            const p = document.createElement("p");
+            p.className = "description";
+            p.textContent = description;
+            div.appendChild(p);
+        }
+
         if (usedCodes.includes(code)) {
           svg.remove();
           div.innerHTML = `✅️ <i>${code}</i> ✅️`;
         }
 
         div.addEventListener("click", (event) => {
-          if (event.target.closest('button, a, .scan-marker-icon')) return;
+          if (event.target.closest('button, a, .scan-marker-icon, .description')) return;
 
           const svgElement = div.querySelector('svg');
           if (svgElement) {
@@ -481,6 +509,15 @@
                 div.appendChild(topMarkerAgain);
             }
             div.appendChild(newSvg);
+
+            const desc = codeDescriptions[code];
+            if (desc) {
+                const p = document.createElement("p");
+                p.className = "description";
+                p.textContent = desc;
+                div.appendChild(p);
+            }
+
             div.classList.remove("used");
             updateUsedCodes(code, false);
           }
@@ -495,7 +532,7 @@
       }
     });
   }
-  
+
   function confirmClear() {
     const inputHasValue = inputTextArea.value.trim().length > 0;
     if (!inputHasValue) {
@@ -519,7 +556,8 @@
   function clearInput(showSuccessToast = true) {
     inputTextArea.value = "";
     outputDiv.innerHTML = "";
-    savePdfBtn.style.display = "none";
+    codeDescriptions = {}; // Clear descriptions
+    updateActionButtonsVisibility(false);
     searchContainerDiv.style.display = "none";
     localStorage.removeItem('barcodeInput');
     if (isScannerActive) stopScanner();
@@ -559,6 +597,10 @@
         let currentCodes = inputTextArea.value.trim().split(/\s+/).map(c => c.trim()).filter(Boolean);
         let keptCodes = currentCodes.filter(code => !usedCodes.includes(code));
         inputTextArea.value = keptCodes.join("\n");
+        
+        // Remove descriptions for removed codes
+        usedCodes.forEach(code => delete codeDescriptions[code]);
+
         const removedCount = usedCodes.length;
         usedCodes = [];
         localStorage.removeItem('usedCodes');
@@ -568,17 +610,23 @@
     });
   }
 
+  function updateActionButtonsVisibility(show) {
+    const displayValue = show ? "inline-block" : "none";
+    savePdfBtn.style.display = displayValue;
+    downloadExcelBtn.style.display = displayValue;
+  }
+
   // --- Funciones Escáner (Lógica actualizada) ---
   function onScanSuccess(decodedText, decodedResult) {
-    if (!isScannerActive) return; // Evitar ejecuciones si ya se detuvo
+    if (!isScannerActive) return; 
 
-    html5QrCode.pause(true); // Pausar el escáner y el video
+    html5QrCode.pause(true); 
 
     const codeToAdd = decodedText.trim();
 
     if (codeToAdd.length < MIN_CODE_LENGTH) {
         showToast(`Código "${codeToAdd}" demasiado corto`, 'warning');
-        if (isScannerActive) html5QrCode.resume(); // Reanudar si es corto
+        if (isScannerActive) html5QrCode.resume(); 
         return;
     }
     
@@ -606,7 +654,6 @@
             }
         }
     }).finally(() => {
-        // Reanudar el escáner solo si no fue detenido manualmente mientras el modal estaba abierto
         if (isScannerActive) {
             html5QrCode.resume();
         }
@@ -643,7 +690,7 @@
   }
 
  function stopScanner() {
-    isScannerActive = false; // Marcar como inactivo primero para evitar que se reanude
+    isScannerActive = false;
     if (html5QrCode && html5QrCode.isScanning) {
         html5QrCode.stop().then(ignore => {
             console.log("Scanner detenido.");
@@ -669,23 +716,33 @@
         title: 'Generando PDF...',
         text: 'Por favor, espera.',
         allowOutsideClick: false,
-        didOpen: () => {
-            Swal.showLoading();
-        }
+        didOpen: () => { Swal.showLoading(); }
     });
 
     try {
       const elementToPrint = document.createElement("div");
       const container = document.createElement("div");
       container.style.cssText = "display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 5mm;";
-
-      document.querySelectorAll("#output .barcode-item:not(.barcode-error) svg").forEach(svgElement => {
+      
+      const items = document.querySelectorAll("#output .barcode-item:not(.used):not(.barcode-error)");
+      items.forEach(item => {
           const cleanDiv = document.createElement("div");
-          cleanDiv.style.cssText = "background: #fff; padding: 5px; border: 1px solid #eee; border-radius: 4px; text-align: center; page-break-inside: avoid;";
-          const svgClone = svgElement.cloneNode(true);
-          svgClone.style.fill = '#000';
-          svgClone.querySelectorAll('text').forEach(textEl => { textEl.style.fill = '#000'; });
-          cleanDiv.appendChild(svgClone);
+          cleanDiv.style.cssText = "background: #fff; padding: 5px; border: 1px solid #eee; border-radius: 4px; text-align: center; page-break-inside: avoid; display: flex; flex-direction: column; align-items: center; justify-content: center;";
+          
+          const svgElement = item.querySelector('svg');
+          if (svgElement) {
+              const svgClone = svgElement.cloneNode(true);
+              svgClone.style.fill = '#000';
+              svgClone.querySelectorAll('text').forEach(textEl => { textEl.style.fill = '#000'; });
+              cleanDiv.appendChild(svgClone);
+          }
+
+          const descElement = item.querySelector('.description');
+          if (descElement) {
+              const descClone = descElement.cloneNode(true);
+              descClone.style.color = '#000'; // Make sure description is black for PDF
+              cleanDiv.appendChild(descClone);
+          }
           container.appendChild(cleanDiv);
       });
 
@@ -712,6 +769,171 @@
       savePdfBtn.disabled = false;
     }
   }
+
+  // --- NEW: File Upload and Excel Functions ---
+  function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+            if (json.length === 0) {
+                showToast("El archivo parece estar vacío.", "warning");
+                return;
+            }
+            
+            codeDescriptions = {}; // Reset descriptions
+            const codes = [];
+            let codesFound = 0;
+            let descriptionsFound = 0;
+
+            json.forEach(row => {
+                let code = '';
+                // Priority: upc -> item -> item_ -> codigo
+                if (row.upc) code = String(row.upc);
+                else if (row.item) code = String(row.item);
+                else if (row.item_) code = String(row.item_);
+                else if (row.codigo) code = String(row.codigo);
+                
+                code = code.trim();
+
+                if (code) {
+                    codes.push(code);
+                    codesFound++;
+                    if (row.descripcion) {
+                        codeDescriptions[code] = String(row.descripcion).trim();
+                        descriptionsFound++;
+                    }
+                }
+            });
+
+            if (codes.length > 0) {
+                inputTextArea.value = codes.join('\n');
+                showToast(`${codesFound} códigos y ${descriptionsFound} descripciones cargadas.`, 'success');
+                generateBarcodes();
+            } else {
+                showToast("No se encontraron columnas de código válidas (upc, item, item_, codigo).", "error");
+            }
+        } catch (error) {
+            console.error("Error al leer el archivo Excel:", error);
+            showToast("Hubo un error al procesar el archivo.", "error");
+        } finally {
+            fileUploadInput.value = ''; // Reset file input
+        }
+    };
+    reader.onerror = () => {
+        showToast("No se pudo leer el archivo.", "error");
+        fileUploadInput.value = '';
+    };
+    reader.readAsArrayBuffer(file);
+  }
+  
+  // Helper to convert SVG to PNG data URL
+  function svgToPngDataUrl(svgElement, width = 250, height = 80) {
+    return new Promise((resolve, reject) => {
+      const svgXml = new XMLSerializer().serializeToString(svgElement);
+      const svgDataUrl = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svgXml)));
+      
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      
+      const img = new Image();
+      img.onload = () => {
+        ctx.fillStyle = '#FFFFFF'; // Set white background for PNG
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        try {
+            // Return base64 string without the data URL prefix
+            const pngDataUrl = canvas.toDataURL("image/png").split(",")[1];
+            resolve(pngDataUrl);
+        } catch(e) {
+            console.error("Error converting canvas to data URL", e);
+            reject(e);
+        }
+      };
+      img.onerror = (e) => {
+          console.error("Error loading SVG into image", e);
+          reject("No se pudo cargar la imagen SVG.");
+      };
+      img.src = svgDataUrl;
+    });
+  }
+
+  async function downloadExcel() {
+    downloadExcelBtn.disabled = true;
+    Swal.fire({
+      title: 'Generando Excel...',
+      text: 'Convirtiendo imágenes y armando el archivo. Esto puede tardar un momento.',
+      allowOutsideClick: false,
+      didOpen: () => { Swal.showLoading() }
+    });
+
+    try {
+        const wb = XLSX.utils.book_new();
+        const wsData = [["Código", "Descripción", "Código de Barras"]];
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        
+        ws['!images'] = [];
+        ws['!rows'] = [{ hpt: 25 }]; // Header row height
+        ws['!cols'] = [{ wch: 20 }, { wch: 40 }, { wch: 35 }]; // Column widths
+        
+        const items = Array.from(document.querySelectorAll("#output .barcode-item:not(.used):not(.barcode-error)"));
+        let rowIndex = 1;
+
+        for (const item of items) {
+            const code = item.dataset.code;
+            const description = item.querySelector('.description')?.textContent || '';
+            const svgElement = item.querySelector('svg');
+
+            XLSX.utils.sheet_add_aoa(ws, [[code, description]], { origin: `A${rowIndex + 1}` });
+            ws['!rows'].push({ hpt: 65 }); // Set row height for barcode image
+
+            if (svgElement) {
+                try {
+                  const pngBase64 = await svgToPngDataUrl(svgElement);
+                  ws['!images'].push({
+                      name: `${code}.png`,
+                      data: pngBase64,
+                      opts: { base64: true },
+                      position: {
+                          type: 'oneCellAnchor',
+                          attrs: {
+                              from: { col: 2, row: rowIndex },
+                              to: { col: 2, row: rowIndex }
+                          }
+                      }
+                  });
+                } catch (e) {
+                  // If conversion fails, add a note in the cell
+                  XLSX.utils.sheet_add_aoa(ws, [["Error al generar imagen"]], { origin: `C${rowIndex + 1}`});
+                }
+            }
+            rowIndex++;
+        }
+
+        XLSX.utils.book_append_sheet(wb, ws, "Códigos de Barras");
+        XLSX.writeFile(wb, `codigos_de_barras_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        
+        Swal.close();
+        showToast('Excel generado correctamente', 'success');
+
+    } catch (error) {
+        console.error("Error al generar Excel:", error);
+        Swal.fire('Error', 'Hubo un problema al generar el archivo Excel.', 'error');
+    } finally {
+        downloadExcelBtn.disabled = false;
+    }
+  }
+
 
   // --- Función Búsqueda ---
   function searchBarcode() {
@@ -778,13 +1000,14 @@
         icon: 'info',
         html: `
           <div style="text-align: left; padding: 0 1em;">
-            <p>Esta herramienta te permite generar, gestionar y escanear códigos de barras de forma sencilla.</p>
+            <p>Esta herramienta te permite generar, gestionar y exportar códigos de barras de forma sencilla.</p>
             <ul style="padding-left: 1.5em; margin-top: 1em;">
-              <li><b>Generar:</b> Crea códigos a partir de números con <b>5 o más dígitos</b>.</li>
+              <li><b>Generar:</b> Crea códigos a partir de números pegados en el área de texto.</li>
+              <li><b>Cargar Archivo:</b> Carga códigos desde un Excel (.xlsx). Busca columnas como <b>upc, item, codigo</b> y <b>descripcion</b>.</li>
               <li><b>Limpiar:</b> Borra la entrada y los códigos generados.</li>
-              <li><b>Escanear:</b> Usa la cámara para leer códigos. Al detectar uno, se pausará y te preguntará si deseas añadirlo antes de continuar.</li>
-              <li><b>Marcar/Desmarcar:</b> Haz clic en un código para marcarlo como "usado" o revertir.</li>
-              <li><b>PDF:</b> Exporta los códigos visibles a un archivo PDF.</li>
+              <li><b>Escanear:</b> Usa la cámara para leer códigos y añadirlos a la lista.</li>
+              <li><b>Marcar/Desmarcar:</b> Haz clic en un código para marcarlo como "usado".</li>
+              <li><b>PDF / Excel:</b> Exporta los códigos visibles (no marcados como usados) a un archivo PDF o Excel.</li>
               <li><b>Buscar (🔍):</b> Resalta un código específico en la lista.</li>
             </ul>
             <hr style="margin: 1.5em 0;">
@@ -810,7 +1033,7 @@
       const savedTheme = localStorage.getItem('theme');
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       applyTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
-      inputTextArea.placeholder = "Pega aquí tus códigos (5+ dígitos, separados por espacio, tab o salto de línea)...";
+      inputTextArea.placeholder = "Pega aquí tus códigos (5+ dígitos, separados por espacio, tab o salto de línea) o carga un archivo Excel...";
       const storedInput = localStorage.getItem('barcodeInput');
       if (storedInput) {
           inputTextArea.value = storedInput;
